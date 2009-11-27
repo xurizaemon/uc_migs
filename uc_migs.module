@@ -288,7 +288,7 @@ function uc_migs_complete($cart_id = 0) {
       uc_order_comment_save($order->order_id, 0, t('Attempted unverified MIGS completion for this order.'), 'admin');
     }
     $output = t('An error has occurred during payment.  View the response below and either re-try your order with another method or contact us for help.');
-    $items[] = t('Transaction Response Code Description: !description', array('!description'=>_get_response_description($txnResponseCode)));
+    $items[] = t('Transaction Response Code Description: !description', array('!description'=>_uc_migs_uc_migs_get_response_description($txnResponseCode)));
     $items[] = t('Message: !message', array('!message'=>$message));
     $items[] = t('Transaction Response Code: !code', array('!code'=>$txnResponseCode));
     $output .= theme_item_list($items);
@@ -321,7 +321,7 @@ function uc_migs_complete($cart_id = 0) {
 //
 // @return String containing the appropriate description
 //
-function _get_response_description($responseCode) {
+function _uc_migs_get_response_description($responseCode) {
 
     switch ($responseCode) {
         case "0" : $result = "Transaction Successful"; break;
