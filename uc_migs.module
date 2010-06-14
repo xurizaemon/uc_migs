@@ -41,6 +41,12 @@ function uc_migs_theme() {
       ),
       'template'  => 'uc-migs-order-incomplete',
     ),
+    'uc_migs_cc_logo' => array(
+      'arguments' => array(
+        'filename' => '',
+        'alttext'  => '',
+      ),
+    ),
   );
 }
 
@@ -83,8 +89,12 @@ function uc_migs_form_alter(&$form, &$form_state, $form_id) {
 function uc_migs_payment_method() {
   $path = base_path() . drupal_get_path('module', 'uc_migs');
   $title = variable_get('uc_migs_method_title', t('Credit card on a secure server.'));
-  // $title .= '<br /><img src="'. $path .'/gateways/2cocc05.gif" style="position: relative; left: 2.5em;">';
-
+  if ( variable_get('uc_migs_method_title_icons', TRUE) ) {
+    $title .= '<br />' ;
+    foreach ( _uc_migs_cc_logos() as $k => $v ) {
+      $title .= theme('uc_migs_cc_logo', $v, $k) ;
+    }    
+  }
   $methods[] = array(
     'id' => 'migs',
     'name' => t('MIGS 3rd party'),
@@ -158,6 +168,19 @@ function uc_payment_method_migs($op, &$arg1) {
         '#title' => t('Show credit card icons beside the payment method title.'),
         '#deault_value' => variable_get('uc_migs_method_title_icons', TRUE),
       );
+      foreach ( _uc_migs_cc_logos() as $cc_logo ) {
+        if ( !file_exists($cc_logo) ) {
+          $missing_cc_logos[] = $cc_logo ;
+        }
+      }
+      if ( $missing_cc_logos ) {
+        $form['uc_migs_method_title_icons']['#prefix'] = "<p class='error'>Please upload appropriate logos to have the correct credit card icons beside the payment method (if the next checkbox is enabled). The missing file(s) are: ". 
+          theme('item_list', $missing_cc_logos, '', 'ul', array('class' => 'error')) . '</p>' ;
+      }
+      $form['uc_migs_method_title_icons']['#description'] = 'The following logos can be displayed:<br />' ;
+      foreach ( _uc_migs_cc_logos() as $k => $v ) {
+        $form['uc_migs_method_title_icons']['#description'] .= theme('uc_migs_cc_logo', $v, $k) ;
+      }
       $form['uc_migs_checkout_button'] = array(
         '#type' => 'textfield',
         '#title' => t('Order review submit button text'),
@@ -410,3 +433,29 @@ function _uc_migs_get_response_description($responseCode) {
   return $result;
 }
 
+/**
+ * Helper function to return a named array of CC provider logos to display.
+ *
+ * Note that you need not override this; you can simply alter the
+ * variables or replace the files in the default location.
+ */
+function _uc_migs_cc_logos() {
+  $cc_logos = array(
+    'MasterCard' => variable_get('uc_migs_logo_mastercard', file_directory_path() .'/uc_migs/mastercard.gif'),
+    'Visa' => variable_get('uc_migs_logo_visa', file_directory_path() .'/uc_migs/visa.gif'),
+  ) ;
+  return $cc_logos ;
+}
+
+/**
+ * Allow people to override the logo display.
+ *
+ * return theme('imagecache', 'cc_logo', $filename, $alttext) ;
+ *
+ * I like to then do something like the above in my theme. Of course,
+ * you can always modify the provider logos, but why open Photoshop
+ * when you have Drupal? 'cc_logo' is a scale preset with height=50.
+ */
+function theme_uc_migs_cc_logo($filename, $alttext='') {
+  return theme('image', $filename, $alttext) ;
+}
