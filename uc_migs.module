@@ -31,12 +31,11 @@ function uc_migs_theme() {
   return array(
     // Because we use uc_cart_complete_sale, we don't have an
     // overridable theme function for uc completion. But we do have
-    // one for incomplete transactions.
+    // one for incomplete transactions!
     'uc_migs_order_incomplete' => array(
       'arguments' => array(
-        'response_message' => '', // will be replaced with error description
-        'response_code'    => '', // response code
-        'message'          => '', // message from VPC
+        'response_message' => '',   // will be replaced with error description
+        'order_info'       => '',
         'order'            => NULL, // order, if applicable
       ),
       'template'  => 'uc-migs-order-incomplete',
@@ -310,7 +309,7 @@ function uc_migs_complete($cart_id = 0) {
 
   if ($order === FALSE) {
     drupal_set_title('Order Error');
-    return theme('uc_migs_order_incomplete', 'No order found.', '', $plain_message);
+    return theme('uc_migs_order_incomplete', 'No order found.');
   }
 
   switch (uc_order_status_data($order->order_status, 'state')) {
@@ -318,10 +317,10 @@ function uc_migs_complete($cart_id = 0) {
       break ;
     case 'post_checkout' :
       drupal_set_title('Order Already Completed');
-      return theme('uc_migs_order_incomplete', 'Order already completed.', '', $plain_message);    
+      return theme('uc_migs_order_incomplete', 'Order already completed.', $orderInfo, $order);    
     default:
       drupal_set_title('Order Error');
-      return theme('uc_migs_order_incomplete', 'Order not in checkout.', '', $plain_message);    
+      return theme('uc_migs_order_incomplete', 'Order not in checkout.', $orderInfo, $order);    
   }
 
   if ( $errorExists || $txnResponseCode != "0") {
