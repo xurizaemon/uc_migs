@@ -313,9 +313,15 @@ function uc_migs_complete($cart_id = 0) {
     return theme('uc_migs_order_incomplete', 'No order found.', '', $plain_message);
   }
 
-  if (uc_order_status_data($order->order_status, 'state') != 'in_checkout') {
-    drupal_set_title('Order Error');
-    return theme('uc_migs_order_incomplete', 'Order not in checkout.', '', $plain_message);    
+  switch (uc_order_status_data($order->order_status, 'state')) {
+    case 'in_checkout' :
+      break ;
+    case 'post_checkout' :
+      drupal_set_title('Order Already Completed');
+      return theme('uc_migs_order_incomplete', 'Order already completed.', '', $plain_message);    
+    default:
+      drupal_set_title('Order Error');
+      return theme('uc_migs_order_incomplete', 'Order not in checkout.', '', $plain_message);    
   }
 
   if ( $errorExists || $txnResponseCode != "0") {
