@@ -125,14 +125,14 @@ function uc_payment_method_migs($op, &$arg1) {
         '#default_value' => variable_get('uc_migs_access_code', ''),
         '#size' => 16,
       );
-    $form['uc_migs_secure_hash_secret'] = array(
+      $form['uc_migs_secure_hash_secret'] = array(
         '#type' => 'textfield',
         '#title' => t('Secure hash secret'),
         '#description' => t('The secure hash secret is used to check the integrity of the transaction request.'),
         '#default_value' => variable_get('uc_migs_secure_hash_secret', ''),
         '#size' => 32,
       );
-    $form['uc_migs_version'] = array(
+      $form['uc_migs_version'] = array(
         '#type' => 'textfield',
         '#title' => t('Version number'),
         '#description' => t('The version number of the API being used. Currently developed for version 1. Most likely do not change this.'),
@@ -168,7 +168,9 @@ function uc_payment_method_migs($op, &$arg1) {
   }
 }
 
-// Form to build the submission to MIGS server
+/**
+ * Form to build the submission to MIGS server
+ */
 function uc_migs_form(&$form_state, $order) {
   $vpc_Amount = $order->order_total * 100;
   $vpc_OrderInfo = $order->order_id;
@@ -188,6 +190,9 @@ function uc_migs_form(&$form_state, $order) {
   return $form;
 }
 
+/**
+ * Submit form and redirect to MIGS
+ */
 function uc_migs_form_submit($form, &$form_state) {
   $vpc_AccessCode  = variable_get('uc_migs_access_code', '');
   $vpc_Amount      = $form_state['values']['vpc_Amount'];
@@ -230,24 +235,19 @@ function uc_migs_complete($cart_id = 0) {
   $secure_secret = variable_get('uc_migs_secure_hash_secret', '');
   
   $vpc_Txn_Secure_Hash = $_GET["vpc_SecureHash"];
-  // @TODO may not be necessary to unset() here if we exclude these vars a few lines later?
-  unset($_GET["vpc_SecureHash"]);
-  unset($_GET["q"]);
   $errorExists = false;
 
   if (strlen($secure_secret) > 0 && $_GET["vpc_TxnResponseCode"] != "7" && $_GET["vpc_TxnResponseCode"] != "No Value Returned") {
     $md5HashData = $secure_secret;
     // sort all the incoming vpc response fields and leave out any with no value
     foreach($_GET as $key => $value) {
-      if (($key != "vpc_SecureHash" && $key != "q") || strlen($value) > 0) {
+      if ($key != "vpc_SecureHash" && $key != "q" && strlen($value) > 0) {
         $md5HashData .= $value;
       }
     }
     // Validate the Secure Hash (remember MD5 hashes are not case sensitive)
     // The hash check is all about detecting if the data has changed in transit.
-    if (strtoupper($vpc_Txn_Secure_Hash) == strtoupper(md5($md5HashData))) {
-      // Secure Hash validation succeeded, don't need to do anything
-    } else {
+    if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
       // Secure Hash validation failed
       $errorExists = true;
     }
