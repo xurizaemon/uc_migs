@@ -5,15 +5,19 @@
  * @file
  * Integrates MIGS 3rd party payment system.
  *
- * This a payment module intended for the MIGS (MasterCard Internet Gateway Service)
- * for what they call the "3rd party" integration method, or the Virtual Payment Client 
- * (VPC) which is the interface that processes the payment on their secure server.
+ * This a payment module intended for the MIGS (MasterCard Internet
+ * Gateway Service) for what they call the "3rd party" integration
+ * method, or the Virtual Payment Client (VPC) which is the interface
+ * that processes the payment on their secure server.
  *
- * Initially developed by T-Rex Art < http://www.trexart.com.au > based on the 2checkout Module 
- * Bug fix, tests, description and contribution package by Open Web Lab < http://www.openweblab.com >
- * Further development & D6 port by Giant Robot < http://www.giantrobot.co.nz >
- * 
- * See http://drupal.org/project/uc_migs for the most recent version.
+ * See http://drupal.org/project/uc_migs for the most up to date version.
+ *
+ * Currently maintained by Giant Robot Ltd - www.giantrobot.co.nz 
+ * Feedback welcome via issue queue or twitter.com/grobot
+ *
+ * Thanks also to previous authors & contributors:
+ *  T-Rex Art    - http://www.trexart.com.au
+ *  Open Web Lab - http://www.openweblab.com
  */
 
 /*******************************************************************************
@@ -77,9 +81,9 @@ function uc_migs_form_alter(&$form, &$form_state, $form_id) {
  * Implementation of hook_payment_method().
  */
 function uc_migs_payment_method() {
-  $path = base_path() . drupal_get_path('module', 'uc_payment');
-  $title = variable_get('uc_migs_method_title', t('Credit card on a secure server:'));
-  //$title .= '<br /><img src="'. $path .'/gateways/2cocc05.gif" style="position: relative; left: 2.5em;">';
+  $path = base_path() . drupal_get_path('module', 'uc_migs');
+  $title = variable_get('uc_migs_method_title', t('Credit card on a secure server.'));
+  // $title .= '<br /><img src="'. $path .'/gateways/2cocc05.gif" style="position: relative; left: 2.5em;">';
 
   $methods[] = array(
     'id' => 'migs',
@@ -170,8 +174,8 @@ function uc_migs_form(&$form_state, $order) {
   $vpc_OrderInfo = $order->order_id;
   $vpc_MerchTxnRef = $vpc_OrderInfo . '_' . time();
   $data = array(
-  'vpc_MerchTxnRef' => $vpc_MerchTxnRef,
-  'vpc_OrderInfo' => $vpc_OrderInfo,
+    'vpc_MerchTxnRef' => $vpc_MerchTxnRef,
+    'vpc_OrderInfo' => $vpc_OrderInfo,
     'vpc_Amount' => $vpc_Amount,
   );
   foreach ($data as $name => $value) {
@@ -335,7 +339,8 @@ function _uc_migs_get_response_description($responseCode) {
       $result = "Transaction status is unknown"; 
       break;
     case "1" : 
-      $result = "Unknown Error"; break;
+      $result = "Transaction could not be processed";
+      break;
     case "2" :
       $result = "Bank Declined Transaction";
       break ;
