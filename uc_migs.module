@@ -16,20 +16,29 @@
  * See http://drupal.org/project/uc_migs for the most recent version.
  */
 
-/** 
- * TODO Implement the hook_theme registry. Combine all theme registry entries
- * into one hook_theme function in each corresponding module file.
- */
-/*
-function uc_migs_theme() {
-  return array(
-  );
-} 
-*/
-
 /*******************************************************************************
  * Hook Functions (Drupal)
  ******************************************************************************/
+
+/** 
+ * Implementation of hook_theme()
+ */
+function uc_migs_theme() {
+  return array(
+    // Because we use uc_cart_complete_sale, we don't have an
+    // overridable theme function for uc completion. But we do have
+    // one for incomplete transactions.
+    'uc_migs_order_incomplete' => array(
+      'arguments' => array(
+        'response_message' => '', // will be replaced with error description
+        'response_code'    => '', // response code
+        'message'          => '', // message from VPC
+        'order'            => NULL, // order, if applicable
+      ),
+      'template'  => 'uc-migs-order-incomplete',
+    ),
+  );
+}
 
 /**
  * Implementation of hook_menu().
@@ -176,7 +185,6 @@ function uc_migs_form(&$form_state, $order) {
 }
 
 function uc_migs_form_submit($form, &$form_state) {
-  dpm($form_state);
   $vpc_AccessCode  = variable_get('uc_migs_access_code', '');
   $vpc_Amount      = $form_state['values']['vpc_Amount'];
   $vpc_Locale      = variable_get('uc_migs_locale', 'en');
@@ -205,8 +213,7 @@ function uc_migs_form_submit($form, &$form_state) {
     '&' . urlencode('vpc_Version') . '=' . urlencode($vpc_Version) .
     '&' . urlencode('vpc_SecureHash') . '=' . strtoupper(md5($md5HashData));
   
-  // FINISH TRANSACTION - Redirect the customers to MIGS
-  // ===================================================================
+  // redirect to MIGS URL for payment
   $form_state['redirect'] = $vpcURL;
 }
 
@@ -249,7 +256,7 @@ function uc_migs_complete($cart_id = 0) {
   $locale          = $_GET["vpc_Locale"];
   $batchNo         = $_GET["vpc_BatchNo"];
   $command         = $_GET["vpc_Command"];
-  $message         = $_GET["vpc_Message"];
+  $message         = $_GET["vpc_Message"]; 
   $version         = $_GET["vpc_Version"];
   $cardType        = $_GET["vpc_Card"];
   $orderInfo       = $_GET["vpc_OrderInfo"];
@@ -259,8 +266,9 @@ function uc_migs_complete($cart_id = 0) {
   $merchTxnRef     = $_GET["vpc_MerchTxnRef"];
   $transactionNo   = $_GET["vpc_TransactionNo"];
   $acqResponseCode = $_GET["vpc_AcqResponseCode"];
-  $txnResponseCode = $_GET["vpc_TxnResponseCode"];
-  
+  $txnResponseCode = check_plain($_GET["vpc_TxnResponseCode"]);
+  $plain_message   = check_plain($_GET['vpc_Message']);
+
   // 3-D Secure Data
   $verType         = array_key_exists("vpc_VerType", $_GET)          ? $_GET["vpc_VerType"]          : "No Value Returned";
   $verStatus       = array_key_exists("vpc_VerStatus", $_GET)        ? $_GET["vpc_VerStatus"]        : "No Value Returned";
@@ -273,25 +281,24 @@ function uc_migs_complete($cart_id = 0) {
 
   $order = uc_order_load($orderInfo);
 
-//  if ($order === FALSE || $order->order_status != uc_get_order_status_id('in_checkout')) {
-  if ($order === FALSE || uc_order_status_data($order->order_status, 'state') != 'in_checkout') {
+  if ($order === FALSE) {
     drupal_set_title('Order Error');
-    return '<p>' . t('An error has occurred during payment. Please contact us to ensure your order has been received.') . '</p>' ;
+    return theme('uc_migs_order_incomplete', 'No order found.', '', $plain_message);
   }
-  
+
+  if (uc_order_status_data($order->order_status, 'state') != 'in_checkout') {
+    drupal_set_title('Order Error');
+    return theme('uc_migs_order_incomplete', 'Order not in checkout.', '', $plain_message);    
+  }
+
   if ( $errorExists || $txnResponseCode != "0") {
     // page title 'order complete' suddenly seems inappropriate ...
     drupal_set_title(t('Order Incomplete'));
     if ($errorExists) {
-      // print t('An error has occurred during payment.  Your order may have been tampered with, please contact us.');
+      drupal_set_message('An error has occurred during payment. Please contact us. Your order may have been tampered with.', 'error');
       uc_order_comment_save($order->order_id, 0, t('Attempted unverified MIGS completion for this order.'), 'admin');
     }
-    // would be nice if this response was theme()'d
-    $output = '<p>' . t('An error has occurred during payment.  View the response below and either re-try your order with another method or contact us for help.') . '</p>' ;
-    $items[] = t('Transaction Response Code Description: !description', array( '!description' => _uc_migs_get_response_description($txnResponseCode)));
-    $items[] = t('Message: !message', array('!message'=>$message));
-    $items[] = t('Transaction Response Code: !code', array('!code'=>$txnResponseCode));
-    $output .= theme_item_list($items);
+    return theme('uc_migs_order_incomplete', _uc_migs_get_response_description($txnResponseCode), $txnResponseCode, $plain_message, $order) ;
   } else {
     $comment = t('Order #!order has been successfully paid for by credit card with receipt number: !receipt and transaction number: !trans', 
     array('!order' =>check_plain($_POST['order_number']), '!receipt' => $receiptNo, '!trans' => $transactionNo));
@@ -302,7 +309,7 @@ function uc_migs_complete($cart_id = 0) {
     uc_cart_empty($cart_id);
     
     $do_login = variable_get('uc_new_customer_login', FALSE );
-    $output .= uc_cart_complete_sale($order, $do_login);
+    $output = uc_cart_complete_sale($order, $do_login);
     $output = str_replace('[site-url]', url(), $output);
     
     // Add a comment to let sales team know this came in through the site.
