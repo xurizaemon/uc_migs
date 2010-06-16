@@ -1,20 +1,23 @@
 <?php
 /**
+ * @file
  * Template file for incomplete MIGS orders.
  *
  * Completed orders are not themeable in the payment module; you
  * need to theme the Ubercart order completion page instead.
  *
  * Template specific variables:
- *  'response_message' - message derived from error code
- *  'response_code'    - code returned from VPC
- *  'message'          - message as returned via $_GET['vpc_Message']
+ *  'response_message'   - message derived from error code
+ *  'order_info'         - Ubercart Order ID number
+ *  'response_receiptno' - MIGS transaction receipt number
  */
+$order_id   = ( !empty( $order_info ) ) ?  'Order ID #'. $order_info : 'Unknown Order ID' ;
+$receipt_no = ( !empty( $response_receiptno ) ) ? 'Receipt No #'. $response_receiptno : 'Unknown Receipt No' ;
  ?>
 <div class="uc-migs-order-incomplete">
 <?php if ( $response_message != 'Order already completed.') : ?>
   <p>
-     Sorry, your order (ID #<?php print $order_info ;?>) couldn't be processed for the following reason:
+     Sorry, your order (<?php print $order_id .', '. $receipt_no ?>) couldn't be processed for the following reason:
   </p>
   <ul>
     <li>Error: <strong><?php print $response_message ; ?></strong></li>
@@ -27,7 +30,7 @@
   </p>
 <?php else : ?>
   <p>
-    It looks like your order (ID #<?php print $order_info ; ?>) has
+    It looks like your order (<?php print $order_id .', '. $receipt_no ?>) has
     been completed already, but somehow you've reloaded the order 
     confirmation page. This may not be a problem!
   </p>

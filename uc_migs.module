@@ -34,9 +34,10 @@ function uc_migs_theme() {
     // one for incomplete transactions!
     'uc_migs_order_incomplete' => array(
       'arguments' => array(
-        'response_message' => '',   // will be replaced with error description
-        'order_info'       => '',
-        'order'            => NULL, // order, if applicable
+        'response_message'   => '', // will be replaced with error description
+        'response_receiptno' => '', // RRN from MIGS
+        'order_info'         => '', // order ID from Ubercart
+        'order'              => NULL, // order, if applicable
       ),
       'template'  => 'uc-migs-order-incomplete',
     ),
@@ -203,7 +204,10 @@ function uc_migs_form(&$form_state, $order) {
     'vpc_Amount' => $vpc_Amount,
   );
   foreach ($data as $name => $value) {
-    $form[$name] = array('#type' => 'hidden', '#value' => $value);
+    $form[$name] = array(
+      '#type' => 'value', 
+      '#value' => $value
+    );
   }
   $form['submit'] = array(
     '#type' => 'submit',
@@ -257,26 +261,37 @@ function uc_migs_complete($cart_id = 0) {
   $secure_secret = variable_get('uc_migs_secure_hash_secret', '');
   
   $vpc_Txn_Secure_Hash = $_GET["vpc_SecureHash"];
-  $errorExists = false;
+  $errorExists = FALSE ;
 
-  if (strlen($secure_secret) > 0 && $_GET["vpc_TxnResponseCode"] != "7" && $_GET["vpc_TxnResponseCode"] != "No Value Returned") {
+  if ( strlen($secure_secret) == 0 ) {
+    // Secure Hash was not validated, none there to validate
+    drupal_set_title('Site Configuration Error');
+    return theme('uc_migs_order_incomplete', 'The Secure Hash Secret for this site has not been configured. Please contact the site administrator.', $receiptNo, $orderInfo, $order);
+  }
+
+  if ( $_GET["vpc_TxnResponseCode"] != "7" && $_GET["vpc_TxnResponseCode"] != "No Value Returned") {
     $md5HashData = $secure_secret;
-    // sort all the incoming vpc response fields and leave out any with no value
+    // sort all the incoming vpc response fields and leave out any
+    // with no value, or which are "vpc_SecureHash" or "q"
     foreach($_GET as $key => $value) {
       if ($key != "vpc_SecureHash" && $key != "q" && strlen($value) > 0) {
         $md5HashData .= $value;
       }
     }
-    // Validate the Secure Hash (remember MD5 hashes are not case sensitive)
-    // The hash check is all about detecting if the data has changed in transit.
+    // Validate the Secure Hash (remember MD5 hashes are not case
+    // sensitive) The hash check is all about detecting if the data
+    // has changed in transit.
     if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
       // Secure Hash validation failed
-      $errorExists = true;
+      drupal_set_title('Validation Failure');
+      return theme('uc_migs_order_incomplete', 'Transaction failed validation.');    
     }
   } else {
     // Secure Hash was not validated, none there to validate
+    drupal_set_title('Payment Gateway Error');
+    return theme('uc_migs_order_incomplete', 'Payment gateway response could not be processed.', $receiptNo, $orderInfo, $order);  
   }
-  
+
   // Standard Receipt Data
   $amount          = $_GET["vpc_Amount"];
   $locale          = $_GET["vpc_Locale"];
@@ -316,11 +331,17 @@ function uc_migs_complete($cart_id = 0) {
     case 'in_checkout' :
       break ;
     case 'post_checkout' :
+      // to enable page reloads for debugging of the order completion
+      // process, you may wish to uncomment the next two lines
+/*
+      drupal_set_message('Permitting repeat checkout for test purposes.'); 
+      break ;
+*/
       drupal_set_title('Order Already Completed');
-      return theme('uc_migs_order_incomplete', 'Order already completed.', $orderInfo, $order);    
+      return theme('uc_migs_order_incomplete', 'Order already completed.', $receiptNo, $orderInfo, $order);    
     default:
       drupal_set_title('Order Error');
-      return theme('uc_migs_order_incomplete', 'Order not in checkout.', $orderInfo, $order);    
+      return theme('uc_migs_order_incomplete', 'Order not in checkout.', $receiptNo, $orderInfo, $order);    
   }
 
   if ( $errorExists || $txnResponseCode != "0") {
@@ -330,11 +351,21 @@ function uc_migs_complete($cart_id = 0) {
       drupal_set_message('An error has occurred during payment. Please contact us. Your order may have been tampered with.', 'error');
       uc_order_comment_save($order->order_id, 0, t('Attempted unverified MIGS completion for this order.'), 'admin');
     }
-    return theme('uc_migs_order_incomplete', _uc_migs_get_response_description($txnResponseCode), $txnResponseCode, $plain_message, $order) ;
+    return theme('uc_migs_order_incomplete', _uc_migs_get_response_description($txnResponseCode), $receiptNo, $orderInfo, $order) ;
   } else {
-    $comment = t('Order #!order has been successfully paid for by credit card with receipt number: !receipt and transaction number: !trans', 
-    array('!order' =>check_plain($_POST['order_number']), '!receipt' => $receiptNo, '!trans' => $transactionNo));
+    $targs = array(
+      '@order'   => $orderInfo, 
+      '@receipt' => $receiptNo, 
+      '@trans'   => $transactionNo,
+      '@amount'  => uc_currency_format($amount/100),
+    ) ;
+    $comment = t('A payment of @amount for order #@order was made via MIGS by credit card with receipt number: @receipt and transaction number: @trans', $targs);
     uc_payment_enter($order->order_id, 'uc_migs', $amount/100, 0, NULL, $comment);
+    // we also attach the MIGS receipt number to the order so we can
+    // use it in an order token. Some MIGS banks require this number
+    // be displayed to the purchaser in order to more readily process
+    // complaints.
+    $order->data['migs_receiptno'] = $receiptNo ;
     uc_order_save($order);
     
     // Empty the cart...
@@ -463,4 +494,29 @@ function _uc_migs_cc_logos() {
  */
 function theme_uc_migs_cc_logo($filename, $alttext='') {
   return theme('image', $filename, $alttext) ;
+}
+
+/**
+ * Implementation of hook_token_values(). (token.module)
+ */
+function uc_migs_token_values($type, $object = NULL) {
+  switch ($type) {
+    case 'order':
+      $order = $object;
+      if ( isset($order->data['migs_receiptno']) ) {
+        $values['order-migs-receiptno'] = $order->data['migs_receiptno'] ;
+      }
+      break;
+  }
+  return $values;
+}
+
+/**
+ * Implementation of hook_token_list(). (token.module)
+ */
+function uc_migs_token_list($type = 'all') {
+  if ($type == 'order' || $type == 'ubercart' || $type == 'all') {
+    $tokens['order']['order-migs-receiptno'] = t('MIGS Receipt Number (if payment processed via uc_migs)');
+  }
+  return $tokens;
 }
