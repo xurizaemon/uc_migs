@@ -360,13 +360,14 @@ function uc_migs_complete($cart_id = 0) {
       '@amount'  => uc_currency_format($amount/100),
     ) ;
     $comment = t('A payment of @amount for order #@order was made via MIGS by credit card with receipt number: @receipt and transaction number: @trans', $targs);
-    uc_payment_enter($order->order_id, 'uc_migs', $amount/100, 0, NULL, $comment);
     // we also attach the MIGS receipt number to the order so we can
     // use it in an order token. Some MIGS banks require this number
     // be displayed to the purchaser in order to more readily process
     // complaints.
     $order->data['migs_receiptno'] = $receiptNo ;
     uc_order_save($order);
+    // uc_order_save() saves order_status so it needs to happen before uc_payment_enter()
+    uc_payment_enter($order->order_id, 'migs', $amount/100, 0, NULL, $comment);
     
     // Empty the cart...
     uc_cart_empty($cart_id);
