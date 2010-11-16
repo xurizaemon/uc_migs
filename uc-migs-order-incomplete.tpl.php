@@ -8,11 +8,12 @@
  *
  * Template specific variables:
  *  'response_message'   - message derived from error code
+ *  'error_message'      - preprocessed version of above
+ *  'order_id'           - "Order #nn", derived from order_info in preprocess
  *  'order_info'         - Ubercart Order ID number
+ *  'receipt_no'         - "Receipt #nn", derived from response_receiptno in preprocess
  *  'response_receiptno' - MIGS transaction receipt number
  */
-$order_id   = ( !empty( $order_info ) ) ?  'Order ID #'. $order_info : 'Unknown Order ID' ;
-$receipt_no = ( !empty( $response_receiptno ) ) ? 'Receipt No #'. $response_receiptno : 'Unknown Receipt No' ;
  ?>
 <div class="uc-migs-order-incomplete">
 <?php if ( $response_message != 'Order already completed.') : ?>
@@ -20,10 +21,13 @@ $receipt_no = ( !empty( $response_receiptno ) ) ? 'Receipt No #'. $response_rece
      Sorry, your order (<?php print $order_id .', '. $receipt_no ?>) couldn't be processed for the following reason:
   </p>
   <ul>
-    <li>Error: <strong><?php print $response_message ; ?></strong></li>
+    <li>Error: <strong><?php print $error_message ; ?></strong><br /></li>
   </ul>
   <p>
-    You may wish to re-try your order with another payment method, or contact us for help.
+    <small>Details of the error have been recorded in our site logs. You may contact the site administrator for more information.</small>
+  </p>
+  <p>
+    You can try your order again with another payment method, or contact us for help.
   </p>
   <p>
     <?php print l('View your shopping cart to attempt payment again.', 'cart') ; ?>

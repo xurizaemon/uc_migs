@@ -166,7 +166,7 @@ function uc_payment_method_migs($op, &$arg1) {
       $form['uc_migs_method_title_icons'] = array(
         '#type' => 'checkbox',
         '#title' => t('Show credit card icons beside the payment method title.'),
-        '#deault_value' => variable_get('uc_migs_method_title_icons', TRUE),
+        '#default_value' => variable_get('uc_migs_method_title_icons', TRUE),
       );
       foreach ( _uc_migs_cc_logos() as $cc_logo ) {
         if ( !file_exists($cc_logo) ) {
@@ -186,6 +186,11 @@ function uc_payment_method_migs($op, &$arg1) {
         '#title' => t('Order review submit button text'),
         '#description' => t('Provide MIGS specific text for the submit button on the order review page.'),
         '#default_value' => variable_get('uc_migs_checkout_button', t('Submit Order')),
+      );
+      $form['uc_migs_repeat_checkouts'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Permit repeated checkouts by reloading order confirmation page. Recommended for debugging only.'),
+        '#default_value' => variable_get('uc_migs_repeat_checkouts', FALSE),
       );
       return $form;
   }
@@ -256,42 +261,6 @@ function uc_migs_form_submit($form, &$form_state) {
  * Callback for MIGS order completion.
  */
 function uc_migs_complete($cart_id = 0) {
-  watchdog('uc_migs', 'Receiving new order notification for order !order_id.', array('!order_id' => check_plain($_GET["vpc_OrderInfo"])));
-  
-  $secure_secret = variable_get('uc_migs_secure_hash_secret', '');
-  
-  $vpc_Txn_Secure_Hash = $_GET["vpc_SecureHash"];
-  $errorExists = FALSE ;
-
-  if ( strlen($secure_secret) == 0 ) {
-    // Secure Hash was not validated, none there to validate
-    drupal_set_title('Site Configuration Error');
-    return theme('uc_migs_order_incomplete', 'The Secure Hash Secret for this site has not been configured. Please contact the site administrator.', $receiptNo, $orderInfo, $order);
-  }
-
-  if ( $_GET["vpc_TxnResponseCode"] != "7" && $_GET["vpc_TxnResponseCode"] != "No Value Returned") {
-    $md5HashData = $secure_secret;
-    // sort all the incoming vpc response fields and leave out any
-    // with no value, or which are "vpc_SecureHash" or "q"
-    foreach($_GET as $key => $value) {
-      if ($key != "vpc_SecureHash" && $key != "q" && strlen($value) > 0) {
-        $md5HashData .= $value;
-      }
-    }
-    // Validate the Secure Hash (remember MD5 hashes are not case
-    // sensitive) The hash check is all about detecting if the data
-    // has changed in transit.
-    if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
-      // Secure Hash validation failed
-      drupal_set_title('Validation Failure');
-      return theme('uc_migs_order_incomplete', 'Transaction failed validation.');    
-    }
-  } else {
-    // Secure Hash was not validated, none there to validate
-    drupal_set_title('Payment Gateway Error');
-    return theme('uc_migs_order_incomplete', 'Payment gateway response could not be processed.', $receiptNo, $orderInfo, $order);  
-  }
-
   // Standard Receipt Data
   $amount          = $_GET["vpc_Amount"];
   $locale          = $_GET["vpc_Locale"];
@@ -320,39 +289,83 @@ function uc_migs_complete($cart_id = 0) {
   $acqECI          = array_key_exists("vpc_3DSECI", $_GET)           ? $_GET["vpc_3DSECI"]           : "No Value Returned";
   $authStatus      = array_key_exists("vpc_3DSstatus", $_GET)        ? $_GET["vpc_3DSstatus"]        : "No Value Returned";
 
-  $order = uc_order_load($orderInfo);
+  $secure_secret = variable_get('uc_migs_secure_hash_secret', '');
+  
+  $vpc_Txn_Secure_Hash = $_GET["vpc_SecureHash"];
+  $errorExists = FALSE ;
 
+  if ( empty($secure_secret) ) {
+    // Secure Hash was not validated, none there to validate
+    drupal_set_title('Transaction could not be processed');
+    watchdog( 'uc_migs', 'Unable to process response from MIGS gateway, as MIGS Secure Hash Secret is not configured. Please correct your !settings.', array('!settings' => l('payment method settings', 'admin/store/settings/payment/edit/methods')), WATCHDOG_WARNING);
+    return theme('uc_migs_order_incomplete', 'Site configuration error', $receiptNo, $orderInfo, $order);
+  }
+  
+  if ( $txnResponseCode != 7 && $txnResponseCode != '' ) {
+    $md5HashData = $secure_secret;
+    // sort all the incoming vpc response fields and leave out any
+    // with no value, or which are "vpc_SecureHash" or "q"
+    foreach($_GET as $key => $value) {
+      if ($key != "vpc_SecureHash" && $key != "q" && strlen($value) > 0) { // strlen()>0 not empty() because of '0'
+        $md5HashData .= $value;
+      }
+    }
+    // validate secure hash
+    if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
+      // Secure Hash validation failed
+      drupal_set_title('Transaction could not be processed');
+      watchdog( 'uc_migs', 'MIGS gateway rejected payment due to validation failure. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
+      return theme('uc_migs_order_incomplete', 'Transaction could not be validated');    
+    }
+    else {
+      // validation success; fall thru to next phase 
+    }
+  } else {
+    // Secure Hash was not validated, none there to validate
+    drupal_set_title('Transaction could not be processed');
+    $order = uc_order_load($orderInfo);
+    watchdog( 'uc_migs', 'MIGS gateway rejected payment, and returned data did not contain a secure hash. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
+    return theme('uc_migs_order_incomplete', 'Transaction could not be validated', $receiptNo, $orderInfo, $order);  
+  }
+
+  $order = uc_order_load($orderInfo);
   if ($order === FALSE) {
-    drupal_set_title('Order Error');
-    return theme('uc_migs_order_incomplete', 'No order found.');
+    drupal_set_title('Transaction could not be processed');
+    watchdog('uc_migs', 'MIGS gateway unable to find order to process. The Order ID returned from MIGS was @order_id, and $_GET was <pre>@get</pre>', array('@order_id' => $orderInfo, '@get' => print_r($_GET,1)), WATCHDOG_WARNING);
+    return theme('uc_migs_order_incomplete', 'Order could not be found');
   }
 
   switch (uc_order_status_data($order->order_status, 'state')) {
     case 'in_checkout' :
+      watchdog('uc_migs', 'MIGS payment notification received for order @order_id.', array('@order_id'=>$orderInfo));
       break ;
     case 'post_checkout' :
-      // to enable page reloads for debugging of the order completion
-      // process, you may wish to uncomment the next two lines
-/*
-      drupal_set_message('Permitting repeat checkout for test purposes.'); 
-      break ;
-*/
+      if ( variable_get('uc_migs_repeat_checkouts', FALSE) ) {
+        watchdog('uc_migs', 'MIGS payment repeat notification received for order @order_id.', array('@order_id'=>$orderInfo));
+        drupal_set_message('Permitting repeat checkout via MIGS.'); // it's for debug! localize the nag away if you must.
+        break ;
+      }
+
       drupal_set_title('Order Already Completed');
-      return theme('uc_migs_order_incomplete', 'Order already completed.', $receiptNo, $orderInfo, $order);    
+      // this happens when people reload the completion page. It's OK,
+      // but we'll make a note of it anyway.
+      watchdog('uc_migs', 'MIGS payment notification received for already checked out order @order_id.', array('@order_id'=>$orderInfo));
+      return theme('uc_migs_order_incomplete', 'Order already completed', $receiptNo, $orderInfo, $order);    
     default:
       drupal_set_title('Order Error');
-      return theme('uc_migs_order_incomplete', 'Order not in checkout.', $receiptNo, $orderInfo, $order);    
+      watchdog('uc_migs', 'MIGS payment notification received for order @order_id which is not yet in checkout status.', array('@order_id'=>$orderInfo));
+      return theme('uc_migs_order_incomplete', 'Order not in checkout', $receiptNo, $orderInfo, $order);
   }
-
-  if ( $errorExists || $txnResponseCode != "0") {
-    // page title 'order complete' suddenly seems inappropriate ...
-    drupal_set_title(t('Order Incomplete'));
-    if ($errorExists) {
-      drupal_set_message('An error has occurred during payment. Please contact us. Your order may have been tampered with.', 'error');
-      uc_order_comment_save($order->order_id, 0, t('Attempted unverified MIGS completion for this order.'), 'admin');
-    }
-    return theme('uc_migs_order_incomplete', _uc_migs_get_response_description($txnResponseCode), $receiptNo, $orderInfo, $order) ;
+  
+  if ( $txnResponseCode != "0") {
+    // validation success, payment fail
+    drupal_set_title(t('Order Error'));
+    $errmsg = _uc_migs_get_response_description($txnResponseCode) ;
+    watchdog( 'uc_migs', 'A payment via MIGS failed. The error message was: <strong>%errmsg</strong>.<hr />$_GET was: <pre>@get</pre><hr />$order was: <pre>@order</pre>', array('@get' => print_r($_GET,1), '@order' => print_r($order,1), '%errmsg' => $errmsg), WATCHDOG_WARNING );
+    uc_order_comment_save($order->order_id, 0, t('Error processing payment for this order.'), 'admin');
+    return theme('uc_migs_order_incomplete', $errmsg, $receiptNo, $orderInfo, $order) ;
   } else {
+    // success
     $targs = array(
       '@order'   => $orderInfo, 
       '@receipt' => $receiptNo, 
@@ -520,4 +533,39 @@ function uc_migs_token_list($type = 'all') {
     $tokens['order']['order-migs-receiptno'] = t('MIGS Receipt Number (if payment processed via uc_migs)');
   }
   return $tokens;
+}
+
+/**
+ * Preprocess function for uc_migs_order_incomplete()
+ */
+function template_preprocess_uc_migs_order_incomplete(&$variables) {
+  if ( empty($variables['order_info']) ) {
+    $variables['order_id'] = 'Unknown Order ID' ;
+  }
+  else {
+    $variables['order_id'] = t('Order #@order_info', array('@order_info' => $variables['order_info']));
+  }
+  if ( empty($variables['response_receiptno']) ) {
+    $variables['receipt_no'] = 'Unknown Receipt No' ;
+  }
+  else {
+    $variables['receipt_no'] = t('Receipt #@receipt_no', array('@receipt_no' => $variables['response_receiptno']));
+  }
+  // by doing this, we make it possible for sites to reveal more
+  // detailed error messages via themeing, and still conceal them 
+  // by default which keeps MIGS happy (by default)
+  switch ( $variables['response_message'] ) {
+    // these variables indicate a site config issue or other
+    // issue we don't want to share with the great unwashed
+    case 'Site configuration error' :
+    case 'Transaction could not be validated' :
+    case 'Transaction could not be processed' :
+    case 'Order could not be found' :
+      $variables['error_message'] = 'Transaction error.' ;
+      break ;
+      
+    // however, if the problem is with the buyer's CC, we want to tell them what's wrong
+    default :
+      $variables['error_message'] = $variables['response_message'] ;
+  }
 }
