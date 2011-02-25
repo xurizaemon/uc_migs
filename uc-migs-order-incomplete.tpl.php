@@ -1,5 +1,4 @@
 <?php
-// $Id$
 /**
  * @file
  * Template file for incomplete MIGS orders.
