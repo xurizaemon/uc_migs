@@ -568,3 +568,13 @@ function template_preprocess_uc_migs_order_incomplete(&$variables) {
       $variables['error_message'] = $variables['response_message'] ;
   }
 }
+
+/**
+ * Implementation of hook_ucga_display from UC Google Analytics module
+ */
+function uc_migs_ucga_display() {
+  if (arg(0) == 'cart' && arg(1) == 'migs' && arg(2) == 'complete') {
+    return TRUE;
+  }
+  return FALSE;
+}
