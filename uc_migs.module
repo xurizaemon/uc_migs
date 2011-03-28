@@ -199,7 +199,7 @@ function uc_payment_method_migs($op, &$arg1) {
  * Form to build the submission to MIGS server
  */
 function uc_migs_form(&$form_state, $order) {
-  $vpc_Amount = $order->order_total * 100;
+  $vpc_Amount = round($order->order_total * 100);
   $vpc_OrderInfo = $order->order_id;
   $vpc_MerchTxnRef = $vpc_OrderInfo . '_' . time();
   $data = array(
