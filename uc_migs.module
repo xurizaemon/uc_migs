@@ -19,6 +19,13 @@
  *  Open Web Lab - http://www.openweblab.com
  */
 
+//Error messages used multiple times.
+//Mostly to ensure consistency for template_preprocess_uc_migs_order_incomplete
+define('UC_MIGS_ERROR_SITE_CONFIG',   'Site configuration error');
+define('UC_MIGS_ERROR_VALIDATION',    'Transaction could not be validated');
+define('UC_MIGS_ERROR_NOT_PROCESSED', 'Transaction could not be processed');
+define('UC_MIGS_ERROR_NOT_FOUND',     'Order could not be found');
+
 /*******************************************************************************
  * Hook Functions (Drupal)
  ******************************************************************************/
@@ -296,9 +303,9 @@ function uc_migs_complete($cart_id = 0) {
 
   if ( empty($secure_secret) ) {
     // Secure Hash was not validated, none there to validate
-    drupal_set_title('Transaction could not be processed');
+    drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
     watchdog( 'uc_migs', 'Unable to process response from MIGS gateway, as MIGS Secure Hash Secret is not configured. Please correct your !settings.', array('!settings' => l('payment method settings', 'admin/store/settings/payment/edit/methods')), WATCHDOG_WARNING);
-    return theme('uc_migs_order_incomplete', 'Site configuration error', $receiptNo, $orderInfo, $order);
+    return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_SITE_CONFIG, $receiptNo, $orderInfo, $order);
   }
   
   if ( $txnResponseCode != 7 && $txnResponseCode != '' ) {
@@ -313,26 +320,26 @@ function uc_migs_complete($cart_id = 0) {
     // validate secure hash
     if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
       // Secure Hash validation failed
-      drupal_set_title('Transaction could not be processed');
+      drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
       watchdog( 'uc_migs', 'MIGS gateway rejected payment due to validation failure. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
-      return theme('uc_migs_order_incomplete', 'Transaction could not be validated');    
+      return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_VALIDATION);    
     }
     else {
       // validation success; fall thru to next phase 
     }
   } else {
     // Secure Hash was not validated, none there to validate
-    drupal_set_title('Transaction could not be processed');
+    drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
     $order = uc_order_load($orderInfo);
     watchdog( 'uc_migs', 'MIGS gateway rejected payment, and returned data did not contain a secure hash. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
-    return theme('uc_migs_order_incomplete', 'Transaction could not be validated', $receiptNo, $orderInfo, $order);  
+    return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_VALIDATION, $receiptNo, $orderInfo, $order);  
   }
 
   $order = uc_order_load($orderInfo);
   if ($order === FALSE) {
-    drupal_set_title('Transaction could not be processed');
+    drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
     watchdog('uc_migs', 'MIGS gateway unable to find order to process. The Order ID returned from MIGS was @order_id, and $_GET was <pre>@get</pre>', array('@order_id' => $orderInfo, '@get' => print_r($_GET,1)), WATCHDOG_WARNING);
-    return theme('uc_migs_order_incomplete', 'Order could not be found');
+    return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_NOT_FOUND);
   }
 
   switch (uc_order_status_data($order->order_status, 'state')) {
@@ -412,7 +419,7 @@ function _uc_migs_get_response_description($responseCode) {
       $result = "Transaction status is unknown"; 
       break;
     case "1" : 
-      $result = "Transaction could not be processed";
+      $result = UC_MIGS_ERROR_NOT_PROCESSED;
       break;
     case "2" :
       $result = "Bank Declined Transaction";
@@ -557,10 +564,10 @@ function template_preprocess_uc_migs_order_incomplete(&$variables) {
   switch ( $variables['response_message'] ) {
     // these variables indicate a site config issue or other
     // issue we don't want to share with the great unwashed
-    case 'Site configuration error' :
-    case 'Transaction could not be validated' :
-    case 'Transaction could not be processed' :
-    case 'Order could not be found' :
+    case UC_MIGS_ERROR_SITE_CONFIG :
+    case UC_MIGS_ERROR_VALIDATION :
+    case UC_MIGS_ERROR_NOT_PROCESSED :
+    case UC_MIGS_ERROR_NOT_FOUND :
       $variables['error_message'] = 'Transaction error.' ;
       break ;
       
