@@ -28,6 +28,19 @@ define('UC_MIGS_ERROR_VALIDATION',    'Transaction could not be validated');
 define('UC_MIGS_ERROR_NOT_PROCESSED', 'Transaction could not be processed');
 define('UC_MIGS_ERROR_NOT_FOUND',     'Order could not be found');
 
+define('UC_MIGS_TRANSACTION_SUCCESS', 1);
+define('UC_MIGS_TRANSACTION_BADHASH', 2);
+define('UC_MIGS_TRANSACTION_NOHASH', 4);
+define('UC_MIGS_TRANSACTION_NOORDER', 8);
+define('UC_MIGS_TRANSACTION_ORDERPOSTCHECKOUT', 16);
+define('UC_MIGS_TRANSACTION_ORDERNOTYETINCHECKOUT', 32);
+define('UC_MIGS_TRANSACTION_PAYMENTERROR', 64);
+
+define('UC_MIGS_SELECT_RETURN_CODES', 'Allow selection of return codes at checkout.');
+define('UC_MIGS_PERMIT_REPEAT_CONFIRMATION', 'Permit repeated checkouts by reloading order confirmation page.');
+
+define('UC_MIGS_BASE_URL', 'https://migs.mastercard.com.au/vpcpay');
+
 /** 
  * Implementation of hook_theme()
  */
@@ -91,7 +104,6 @@ function uc_migs_form_alter(&$form, &$form_state, $form_id) {
  * Implementation of hook_payment_method().
  */
 function uc_migs_payment_method() {
-  $path = base_path() . drupal_get_path('module', 'uc_migs');
   $title = variable_get('uc_migs_method_title', t('Credit card on a secure server.'));
   if ( variable_get('uc_migs_method_title_icons', TRUE) ) {
     $title .= '<br />' ;
@@ -109,7 +121,6 @@ function uc_migs_payment_method() {
     'weight' => 3,
     'checkout' => TRUE,
     'backend' => TRUE,
-    'no_gateway' => TRUE,
   );
 
   return $methods;
@@ -146,13 +157,6 @@ function uc_payment_method_migs($op, &$arg1) {
         '#description' => t('The secure hash secret is used to check the integrity of the transaction request.'),
         '#default_value' => variable_get('uc_migs_secure_hash_secret', ''),
         '#size' => 32,
-      );
-      $form['uc_migs_version'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Version number'),
-        '#description' => t('The version number of the API being used. Currently developed for version 1. Most likely do not change this.'),
-        '#default_value' => variable_get('uc_migs_version', '1'),
-        '#size' => 5,
       );
       $form['uc_migs_locale'] = array(
         '#type' => 'select',
@@ -192,10 +196,24 @@ function uc_payment_method_migs($op, &$arg1) {
         '#description' => t('Provide MIGS specific text for the submit button on the order review page.'),
         '#default_value' => variable_get('uc_migs_checkout_button', t('Submit Order')),
       );
-      $form['uc_migs_repeat_checkouts'] = array(
+      $form['debug'] = array(
+        '#type' => 'fieldset',
+        '#title' => 'Debug settings',
+        '#description' => 'These settings are for development purposes. Not recommended if accepting live transactions.',
+        '#collapsible' => TRUE,
+        '#collapsed' => !variable_get('uc_migs_repeat_checkouts', FALSE) && !variable_get('uc_migs_select_transaction_results', FALSE),
+      );
+      $form['debug']['uc_migs_repeat_checkouts'] = array(
         '#type' => 'checkbox',
-        '#title' => t('Permit repeated checkouts by reloading order confirmation page. Recommended for debugging only.'),
+        '#title' => t(UC_MIGS_PERMIT_REPEAT_CONFIRMATION),
         '#default_value' => variable_get('uc_migs_repeat_checkouts', FALSE),
+        '#description' => 'Permits reloading of the VPC Return URL. Useful for testing post-sale conditional actions.',
+      );
+      $form['debug']['uc_migs_select_transaction_results'] = array(
+        '#type' => 'checkbox',
+        '#title' => t(UC_MIGS_SELECT_RETURN_CODES),
+        '#default_value' => variable_get('uc_migs_select_transaction_results', FALSE),
+        '#description' => 'Modifies the payment amount to trigger transaction return codes on VPC test gateway, eg $0.33 for "Expired Card".',
       );
       return $form;
   }
@@ -205,9 +223,14 @@ function uc_payment_method_migs($op, &$arg1) {
  * Form to build the submission to MIGS server
  */
 function uc_migs_form(&$form_state, $order) {
+  module_load_include('inc', 'uc_migs', 'uc_migs.lib');
   $vpc_Amount = round($order->order_total * 100);
   $vpc_OrderInfo = $order->order_id;
   $vpc_MerchTxnRef = $vpc_OrderInfo . '_' . time();
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t(variable_get('uc_migs_checkout_button', 'Submit Order')),
+  );
   $data = array(
     'vpc_MerchTxnRef' => $vpc_MerchTxnRef,
     'vpc_OrderInfo' => $vpc_OrderInfo,
@@ -219,10 +242,9 @@ function uc_migs_form(&$form_state, $order) {
       '#value' => $value
     );
   }
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => variable_get('uc_migs_checkout_button', t('Submit Order')),
-  );
+  if (variable_get('uc_migs_select_transaction_results', FALSE)) {
+    _uc_migs_select_transaction_results($form['vpc_Amount']);
+  }
   return $form;
 }
 
@@ -230,75 +252,30 @@ function uc_migs_form(&$form_state, $order) {
  * Submit form and redirect to MIGS
  */
 function uc_migs_form_submit($form, &$form_state) {
-  $vpc_AccessCode  = variable_get('uc_migs_access_code', '');
-  $vpc_Amount      = $form_state['values']['vpc_Amount'];
-  $vpc_Locale      = variable_get('uc_migs_locale', 'en');
-  $vpc_Merchant    = variable_get('uc_migs_mid', '');
-  $vpc_OrderInfo   = $form_state['values']['vpc_OrderInfo'];
-  $vpc_ReturnURL   = url('cart/migs/complete/'. uc_cart_get_id(), array('absolute' => TRUE));
-  $vpc_Version     = variable_get('uc_migs_version', '1');
-  $vpc_MerchTxnRef = $form_state['values']['vpc_MerchTxnRef'] ;
-
-  $secure_secret = variable_get('uc_migs_secure_hash_secret', '');
-  
-  $md5HashData = $secure_secret . $vpc_AccessCode . $vpc_Amount . 'pay' . $vpc_Locale . $vpc_MerchTxnRef . $vpc_Merchant . $vpc_OrderInfo . $vpc_ReturnURL . $vpc_Version;
-  
-  // add the start of the vpcURL querystring parameters
-  $vpcURL = 'https://migs.mastercard.com.au/vpcpay?';
-
-  // urlencode overkill!
-  $vpcURL .= urlencode('vpc_AccessCode') . '=' . urlencode($vpc_AccessCode) .
-    '&' . urlencode('vpc_Amount') . "=" . urlencode($vpc_Amount) .
-    '&' . urlencode('vpc_Command') . "=" . urlencode('pay') .
-    '&' . urlencode('vpc_Locale') . "=" . urlencode($vpc_Locale) .
-    '&' . urlencode('vpc_MerchTxnRef') . "=" . urlencode($vpc_MerchTxnRef) .
-    '&' . urlencode('vpc_Merchant') . "=" . urlencode($vpc_Merchant) .
-    '&' . urlencode('vpc_OrderInfo') . "=" . urlencode($vpc_OrderInfo) .
-    '&' . urlencode('vpc_ReturnURL') . "=" . urlencode($vpc_ReturnURL) .
-    '&' . urlencode('vpc_Version') . '=' . urlencode($vpc_Version) .
-    '&' . urlencode('vpc_SecureHash') . '=' . strtoupper(md5($md5HashData));
-  
-  // redirect to MIGS URL for payment
-  $form_state['redirect'] = $vpcURL;
+  module_load_include('inc', 'uc_migs', 'uc_migs.lib');
+  $args = array(
+    'vpc_AccessCode'  => variable_get('uc_migs_access_code', ''),
+    'vpc_Amount'      => $form_state['values']['vpc_Amount'],
+    'vpc_Locale'      => variable_get('uc_migs_locale', 'en'),
+    'vpc_Merchant'    => variable_get('uc_migs_mid', ''),
+    'vpc_OrderInfo'   => $form_state['values']['vpc_OrderInfo'],
+    'vpc_ReturnURL'   => url('cart/migs/complete/'. uc_cart_get_id(), array('absolute' => TRUE)),
+    'vpc_Version'     => variable_get('uc_migs_version', '1'),
+    'vpc_MerchTxnRef' => $form_state['values']['vpc_MerchTxnRef'],
+    'secure_secret'   => variable_get('uc_migs_secure_hash_secret', ''),
+  );
+  $form_state['redirect'] = _uc_migs_migs_do_url($args);
 }
 
 /**
  * Callback for MIGS order completion.
  */
 function uc_migs_complete($cart_id = 0) {
-  // Standard Receipt Data
-  $amount          = $_GET["vpc_Amount"];
-  $locale          = $_GET["vpc_Locale"];
-  $batchNo         = $_GET["vpc_BatchNo"];
-  $command         = $_GET["vpc_Command"];
-  $message         = $_GET["vpc_Message"]; 
-  $version         = $_GET["vpc_Version"];
-  $cardType        = $_GET["vpc_Card"];
-  $orderInfo       = $_GET["vpc_OrderInfo"];
-  $receiptNo       = $_GET["vpc_ReceiptNo"];
-  $merchantID      = $_GET["vpc_Merchant"];
-  $authorizeID     = $_GET["vpc_AuthorizeId"];
-  $merchTxnRef     = $_GET["vpc_MerchTxnRef"];
-  $transactionNo   = $_GET["vpc_TransactionNo"];
-  $acqResponseCode = $_GET["vpc_AcqResponseCode"];
-  $txnResponseCode = check_plain($_GET["vpc_TxnResponseCode"]);
-  $plain_message   = check_plain($_GET['vpc_Message']);
+  // load MIGS processing code
+  module_load_include('inc', 'uc_migs', 'uc_migs.lib');
 
-  // 3-D Secure Data
-  $verType         = array_key_exists("vpc_VerType", $_GET)          ? $_GET["vpc_VerType"]          : "No Value Returned";
-  $verStatus       = array_key_exists("vpc_VerStatus", $_GET)        ? $_GET["vpc_VerStatus"]        : "No Value Returned";
-  $token           = array_key_exists("vpc_VerToken", $_GET)         ? $_GET["vpc_VerToken"]         : "No Value Returned";
-  $verSecurLevel   = array_key_exists("vpc_VerSecurityLevel", $_GET) ? $_GET["vpc_VerSecurityLevel"] : "No Value Returned";
-  $enrolled        = array_key_exists("vpc_3DSenrolled", $_GET)      ? $_GET["vpc_3DSenrolled"]      : "No Value Returned";
-  $xid             = array_key_exists("vpc_3DSXID", $_GET)           ? $_GET["vpc_3DSXID"]           : "No Value Returned";
-  $acqECI          = array_key_exists("vpc_3DSECI", $_GET)           ? $_GET["vpc_3DSECI"]           : "No Value Returned";
-  $authStatus      = array_key_exists("vpc_3DSstatus", $_GET)        ? $_GET["vpc_3DSstatus"]        : "No Value Returned";
-
-  $secure_secret = variable_get('uc_migs_secure_hash_secret', '');
-  
-  $vpc_Txn_Secure_Hash = $_GET["vpc_SecureHash"];
-  $errorExists = FALSE ;
-
+  // ensure that MIGS is configured before processing
+  $secure_secret   = variable_get('uc_migs_secure_hash_secret', '');  
   if ( empty($secure_secret) ) {
     // Secure Hash was not validated, none there to validate
     drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
@@ -306,45 +283,30 @@ function uc_migs_complete($cart_id = 0) {
     return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_SITE_CONFIG, $receiptNo, $orderInfo, $order);
   }
   
-  if ( $txnResponseCode != 7 && $txnResponseCode != '' ) {
-    $md5HashData = $secure_secret;
-    // sort all the incoming vpc response fields and leave out any
-    // with no value, or which are "vpc_SecureHash" or "q"
-    foreach($_GET as $key => $value) {
-      if ($key != "vpc_SecureHash" && $key != "q" && strlen($value) > 0) { // strlen()>0 not empty() because of '0'
-        $md5HashData .= $value;
-      }
-    }
-    // validate secure hash
-    if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
+  $result = _uc_migs_validate_transaction($secure_secret);
+  $order = uc_order_load(check_plain($_GET['vpc_OrderInfo']));
+  $orderInfo = check_plain($_GET['vpc_OrderInfo']);
+  $receiptNo = check_plain($_GET['vpc_ReceiptNo']);
+  $txnResponseCode = check_plain($_GET['vpc_TxnResponseCode']);
+
+  switch (_uc_migs_validate_transaction($secure_secret)) {
+    case UC_MIGS_TRANSACTION_BADHASH:
       // Secure Hash validation failed
       drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
       watchdog( 'uc_migs', 'MIGS gateway rejected payment due to validation failure. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
       return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_VALIDATION);    
-    }
-    else {
-      // validation success; fall thru to next phase 
-    }
-  } else {
-    // Secure Hash was not validated, none there to validate
-    drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
-    $order = uc_order_load($orderInfo);
-    watchdog( 'uc_migs', 'MIGS gateway rejected payment, and returned data did not contain a secure hash. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
-    return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_VALIDATION, $receiptNo, $orderInfo, $order);  
-  }
+      
+    case UC_MIGS_TRANSACTION_NOHASH:
+      drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
+      watchdog( 'uc_migs', 'MIGS gateway rejected payment, and returned data did not contain a secure hash. $_GET was: <pre>@get</pre>', array('@get' => print_r($_GET,1)), WATCHDOG_WARNING );
+      return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_VALIDATION, $receiptNo, $orderInfo, $order);  
+   
+    case UC_MIGS_TRANSACTION_NOORDER:
+      drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
+      watchdog('uc_migs', 'MIGS gateway unable to find order to process. The Order ID returned from MIGS was @order_id, and $_GET was <pre>@get</pre>', array('@order_id' => $orderInfo, '@get' => print_r($_GET,1)), WATCHDOG_WARNING);
+      return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_NOT_FOUND);
 
-  $order = uc_order_load($orderInfo);
-  if ($order === FALSE) {
-    drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
-    watchdog('uc_migs', 'MIGS gateway unable to find order to process. The Order ID returned from MIGS was @order_id, and $_GET was <pre>@get</pre>', array('@order_id' => $orderInfo, '@get' => print_r($_GET,1)), WATCHDOG_WARNING);
-    return theme('uc_migs_order_incomplete', UC_MIGS_ERROR_NOT_FOUND);
-  }
-
-  switch (uc_order_status_data($order->order_status, 'state')) {
-    case 'in_checkout' :
-      watchdog('uc_migs', 'MIGS payment notification received for order @order_id.', array('@order_id'=>$orderInfo));
-      break ;
-    case 'post_checkout' :
+    case UC_MIGS_TRANSACTION_ORDERPOSTCHECKOUT:
       if ( variable_get('uc_migs_repeat_checkouts', FALSE) ) {
         watchdog('uc_migs', 'MIGS payment repeat notification received for order @order_id.', array('@order_id'=>$orderInfo));
         drupal_set_message('Permitting repeat checkout via MIGS.'); // it's for debug! localize the nag away if you must.
@@ -356,136 +318,49 @@ function uc_migs_complete($cart_id = 0) {
       // but we'll make a note of it anyway.
       watchdog('uc_migs', 'MIGS payment notification received for already checked out order @order_id.', array('@order_id'=>$orderInfo));
       return theme('uc_migs_order_incomplete', 'Order already completed', $receiptNo, $orderInfo, $order);    
-    default:
+
+    case UC_MIGS_TRANSACTION_ORDERNOTYETINCHECKOUT:
       drupal_set_title('Order Error');
       watchdog('uc_migs', 'MIGS payment notification received for order @order_id which is not yet in checkout status.', array('@order_id'=>$orderInfo));
       return theme('uc_migs_order_incomplete', 'Order not in checkout', $receiptNo, $orderInfo, $order);
-  }
-  
-  if ( $txnResponseCode != "0") {
-    // validation success, payment fail
-    drupal_set_title(t('Order Error'));
-    $errmsg = _uc_migs_get_response_description($txnResponseCode) ;
-    watchdog( 'uc_migs', 'A payment via MIGS failed. The error message was: <strong>%errmsg</strong>.<hr />$_GET was: <pre>@get</pre><hr />$order was: <pre>@order</pre>', array('@get' => print_r($_GET,1), '@order' => print_r($order,1), '%errmsg' => $errmsg), WATCHDOG_WARNING );
-    uc_order_comment_save($order->order_id, 0, t('Error processing payment for this order.'), 'admin');
-    return theme('uc_migs_order_incomplete', $errmsg, $receiptNo, $orderInfo, $order) ;
-  } else {
-    // success
-    $targs = array(
-      '@order'   => $orderInfo, 
-      '@receipt' => $receiptNo, 
-      '@trans'   => $transactionNo,
-      '@amount'  => uc_currency_format($amount/100),
-    ) ;
-    $comment = t('A payment of @amount for order #@order was made via MIGS by credit card with receipt number: @receipt and transaction number: @trans', $targs);
-    // we also attach the MIGS receipt number to the order so we can
-    // use it in an order token. Some MIGS banks require this number
-    // be displayed to the purchaser in order to more readily process
-    // complaints.
-    $order->data['migs_receiptno'] = $receiptNo ;
-    uc_order_save($order);
-    // uc_order_save() saves order_status so it needs to happen before uc_payment_enter()
-    uc_payment_enter($order->order_id, 'migs', $amount/100, 0, NULL, $comment);
-    
-    // Empty the cart...
-    uc_cart_empty($cart_id);
-    
-    $do_login = variable_get('uc_new_customer_login', FALSE );
-    $output = uc_cart_complete_sale($order, $do_login);
-    $output = str_replace('[site-url]', url(), $output);
-    
-    // Add a comment to let sales team know this came in through the site.
-    uc_order_comment_save($order->order_id, 0, t('A payment has been accepted.'), 'admin');    
-  }
-  return $output;
-}
 
-/**
- * This method uses the QSI Response code retrieved from the Digital
- * Receipt and returns an appropriate description for the QSI Response Code
- *
- * @param $responseCode String containing the QSI Response Code
- *
- * @return String containing the appropriate description
- */
-function _uc_migs_get_response_description($responseCode) {
-  switch ($responseCode) {
-    case "0" :
-      $result = "Transaction Successful"; 
-      break;
-    case "?" : 
-      $result = "Transaction status is unknown"; 
-      break;
-    case "1" : 
-      $result = UC_MIGS_ERROR_NOT_PROCESSED;
-      break;
-    case "2" :
-      $result = "Bank Declined Transaction";
-      break ;
-    case "3" :
-      $result = "No Reply from Bank";
-      break ;
-    case "4" :
-      $result = "Expired Card";
-      break ;
-    case "5" :
-      $result = "Insufficient funds";
-      break ;
-    case "6" :
-      $result = "Error Communicating with Bank";
-      break ;
-    case "7" :
-      $result = "Payment Server System Error";
-      break ;
-    case "8" :
-      $result = "Transaction Type Not Supported";
-      break ;
-    case "9" :
-      $result = "Bank declined transaction (Do not contact Bank)";
-      break ;
-    case "A" :
-      $result = "Transaction Aborted";
-      break ;
-    case "C" :
-      $result = "Transaction Cancelled";
-      break ;
-    case "D" :
-      $result = "Deferred transaction has been received and is awaiting processing";
-      break ;
-    case "F" :
-      $result = "3D Secure Authentication failed";
-      break ;
-    case "I" :
-      $result = "Card Security Code verification failed";
-      break ;
-    case "L" :
-      $result = "Shopping Transaction Locked (Please try the transaction again later)";
-      break ;
-    case "N" :
-      $result = "Cardholder is not enrolled in Authentication scheme";
-      break ;
-    case "P" :
-      $result = "Transaction has been received by the Payment Adaptor and is being processed";
-      break ;
-    case "R" :
-      $result = "Transaction was not processed - Reached limit of retry attempts allowed";
-      break ;
-    case "S" :
-      $result = "Duplicate SessionID (OrderInfo)";
-      break ;
-    case "T" :
-      $result = "Address Verification Failed";
-      break ;
-    case "U" :
-      $result = "Card Security Code Failed";
-      break ;
-    case "V" :
-      $result = "Address Verification and Card Security Code Failed";
-      break ;
-    default  :
-      $result = "Unable to be determined"; 
+    case UC_MIGS_TRANSACTION_PAYMENTERROR:
+      // validation success, payment fail
+      drupal_set_title(t('Order Error'));
+      $errmsg = _uc_migs_get_response_description($txnResponseCode) ;
+      watchdog( 'uc_migs', 'A payment via MIGS failed. The error message was: <strong>%errmsg</strong>.<hr />$_GET was: <pre>@get</pre><hr />$order was: <pre>@order</pre>', array('@get' => print_r($_GET,1), '@order' => print_r($order,1), '%errmsg' => $errmsg), WATCHDOG_WARNING );
+      uc_order_comment_save($order->order_id, 0, t('Error processing payment for this order.'), 'admin');
+      return theme('uc_migs_order_incomplete', $errmsg, $receiptNo, $orderInfo, $order) ;
+
+    case UC_MIGS_TRANSACTION_SUCCESS:
+      // success
+      $targs = array(
+        '@order'   => $_GET['vpc_OrderInfo'],
+        '@receipt' => $_GET['vpc_ReceiptNo'], 
+        '@trans'   => $_GET['vpc_TransactionNo'],
+        '@amount'  => uc_currency_format($_GET['vpc_Amount']/100),
+      ) ;
+      $comment = t('A payment of @amount for order #@order was made via MIGS by credit card with receipt number: @receipt and transaction number: @trans', $targs);
+      // we also attach the MIGS receipt number to the order so we can
+      // use it in an order token. Some MIGS banks require this number
+      // be displayed to the purchaser in order to more readily process
+      // complaints.
+      $order->data['migs_receiptno'] =  $_GET['vpc_ReceiptNo'] ;
+      uc_order_save($order);
+      // uc_order_save() saves order_status so it needs to happen before uc_payment_enter()
+      uc_payment_enter($order->order_id, 'migs', $amount/100, 0, NULL, $comment);
+      
+      // Empty the cart...
+      uc_cart_empty($cart_id);
+      
+      $do_login = variable_get('uc_new_customer_login', FALSE );
+      $output = uc_cart_complete_sale($order, $do_login);
+      $output = str_replace('[site-url]', url(), $output);
+      
+      // Add a comment to let sales team know this came in through the site.
+      uc_order_comment_save($order->order_id, 0, t('A payment has been accepted.'), 'admin');    
+      return $output;
   }
-  return $result;
 }
 
 /**
