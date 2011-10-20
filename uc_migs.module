@@ -189,22 +189,28 @@ function uc_payment_method_migs($op, &$arg1) {
         ),
         '#default_value' => variable_get('uc_migs_locale', 'en'),
       );
-      $form['interface']['uc_migs_method_title_icons'] = array(
+      $form['interface']['icons'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Credit card logos'),
+        '#collapsible' => TRUE,
+        '#collapsed' => !variable_get('uc_migs_method_title_icons', TRUE),
+      );
+      $form['interface']['icons']['uc_migs_method_title_icons'] = array(
         '#type' => 'checkbox',
         '#title' => t('Show credit card icons beside the payment method title.'),
         '#default_value' => variable_get('uc_migs_method_title_icons', TRUE),
       );
-      foreach ( _uc_migs_cc_logos() as $cc_logo ) {
-        if ( !file_exists($cc_logo) ) {
+      foreach (_uc_migs_cc_logos() as $cc_logo) {
+        if (!file_exists($cc_logo)) {
           $missing_cc_logos[] = $cc_logo ;
         }
       }
       if ( $missing_cc_logos ) {
-        $form['interface']['uc_migs_method_title_icons']['#prefix'] = "<p class='error'>Please upload appropriate logos to have the correct credit card icons beside the payment method (if the next checkbox is enabled). The missing file(s) are: ". 
+        $form['interface']['icons']['uc_migs_method_title_icons']['#prefix'] = "<p class='error'>Please upload appropriate logos to have the correct credit card icons beside the payment method (if the next checkbox is enabled). The missing file(s) are: ". 
           theme('item_list', $missing_cc_logos, '', 'ul', array('class' => 'error')) . '</p>' ;
       }
-      $form['uc_migs_method_title_icons']['#description'] = 'The following logos can be displayed:<br />' ;
-      foreach ( _uc_migs_cc_logos() as $k => $v ) {
+      $form['interface']['icons']['uc_migs_method_title_icons']['#description'] = 'The following logos can be displayed:<br />' ;
+      foreach (_uc_migs_cc_logos() as $k => $v) {
         $form['uc_migs_method_title_icons']['#description'] .= theme('uc_migs_cc_logo', $v, $k) ;
       }
       $form['debug'] = array(
