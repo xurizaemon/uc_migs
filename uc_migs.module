@@ -19,16 +19,14 @@
  *  Open Web Lab - http://www.openweblab.com
  */
 
-//Error messages used multiple times.
-//Mostly to ensure consistency for template_preprocess_uc_migs_order_incomplete
+/**
+ * Error messages used multiple times. Mostly to ensure consistency
+ * for template_preprocess_uc_migs_order_incomplete()
+ */
 define('UC_MIGS_ERROR_SITE_CONFIG',   'Site configuration error');
 define('UC_MIGS_ERROR_VALIDATION',    'Transaction could not be validated');
 define('UC_MIGS_ERROR_NOT_PROCESSED', 'Transaction could not be processed');
 define('UC_MIGS_ERROR_NOT_FOUND',     'Order could not be found');
-
-/*******************************************************************************
- * Hook Functions (Drupal)
- ******************************************************************************/
 
 /** 
  * Implementation of hook_theme()
