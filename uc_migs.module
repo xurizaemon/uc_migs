@@ -104,6 +104,7 @@ function uc_migs_payment_method() {
     'weight' => 3,
     'checkout' => TRUE,
     'backend' => TRUE,
+    'no_gateway' => TRUE,
   );
 
   return $methods;
