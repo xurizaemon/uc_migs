@@ -35,7 +35,7 @@
 <?php else : ?>
   <p>
     It looks like your order (<?php print $order_id .', '. $receipt_no ?>) has
-    been completed already, but somehow you've reloaded the order 
+    been completed already, but somehow you've reloaded the order
     confirmation page. This may not be a problem!
   </p>
   <p>
