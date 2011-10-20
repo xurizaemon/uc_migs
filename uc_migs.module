@@ -137,42 +137,59 @@ function uc_migs_payment_method() {
 function uc_payment_method_migs($op, &$arg1) {
   switch ($op) {
     case 'settings':
-      $form['uc_migs_mid'] = array(
+      $form['merchant'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Merchant Credentials'),
+        '#collapsible' => TRUE,
+        '#collapsed' => variable_get('uc_migs_mid', FALSE),
+      );
+      $form['merchant']['uc_migs_mid'] = array(
         '#type' => 'textfield',
         '#title' => t('Merchant Id'),
         '#description' => t('Your MIGS merchant id.'),
         '#default_value' => variable_get('uc_migs_mid', ''),
         '#size' => 16,
       );
-      $form['uc_migs_access_code'] = array(
+      $form['merchant']['uc_migs_access_code'] = array(
         '#type' => 'textfield',
         '#title' => t('Access code'),
         '#description' => t('The access code is provided to you when you registered your merchant profile.'),
         '#default_value' => variable_get('uc_migs_access_code', ''),
         '#size' => 16,
       );
-      $form['uc_migs_secure_hash_secret'] = array(
+      $form['merchant']['uc_migs_secure_hash_secret'] = array(
         '#type' => 'textfield',
         '#title' => t('Secure hash secret'),
         '#description' => t('The secure hash secret is used to check the integrity of the transaction request.'),
         '#default_value' => variable_get('uc_migs_secure_hash_secret', ''),
         '#size' => 32,
       );
-      $form['uc_migs_locale'] = array(
+      $form['interface'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Interface'),
+      );
+      $form['interface']['uc_migs_method_title'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Payment method title'),
+        '#default_value' => variable_get('uc_migs_method_title', t('Credit card on a secure server:')),
+        '#description' => t('Label on !checkout_link when selecting payment method.', array('!checkout_link' => l('checkout screen', 'cart/checkout'))),
+      );
+      $form['interface']['uc_migs_checkout_button'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Button text on transaction review page'),
+        '#description' => t('Button text on !review_link which redirects to MIGS for payment.', array('!review_link' => l('review screen', 'cart/checkout/review'))),
+        '#default_value' => variable_get('uc_migs_checkout_button', t('Submit Order')),
+      );
+      $form['interface']['uc_migs_locale'] = array(
         '#type' => 'select',
-        '#title' => t('Language preference'),
-        '#description' => t('Adjust language on MIGS pages.'),
+        '#title' => t('MIGS Locale'),
+        '#description' => t('Preferred language to display MIGS interface in.'),
         '#options' => array(
           'en' => t('English'),
         ),
         '#default_value' => variable_get('uc_migs_locale', 'en'),
       );
-      $form['uc_migs_method_title'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Payment method title'),
-        '#default_value' => variable_get('uc_migs_method_title', t('Credit card on a secure server:')),
-      );
-      $form['uc_migs_method_title_icons'] = array(
+      $form['interface']['uc_migs_method_title_icons'] = array(
         '#type' => 'checkbox',
         '#title' => t('Show credit card icons beside the payment method title.'),
         '#default_value' => variable_get('uc_migs_method_title_icons', TRUE),
@@ -183,19 +200,13 @@ function uc_payment_method_migs($op, &$arg1) {
         }
       }
       if ( $missing_cc_logos ) {
-        $form['uc_migs_method_title_icons']['#prefix'] = "<p class='error'>Please upload appropriate logos to have the correct credit card icons beside the payment method (if the next checkbox is enabled). The missing file(s) are: ". 
+        $form['interface']['uc_migs_method_title_icons']['#prefix'] = "<p class='error'>Please upload appropriate logos to have the correct credit card icons beside the payment method (if the next checkbox is enabled). The missing file(s) are: ". 
           theme('item_list', $missing_cc_logos, '', 'ul', array('class' => 'error')) . '</p>' ;
       }
       $form['uc_migs_method_title_icons']['#description'] = 'The following logos can be displayed:<br />' ;
       foreach ( _uc_migs_cc_logos() as $k => $v ) {
         $form['uc_migs_method_title_icons']['#description'] .= theme('uc_migs_cc_logo', $v, $k) ;
       }
-      $form['uc_migs_checkout_button'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Order review submit button text'),
-        '#description' => t('Provide MIGS specific text for the submit button on the order review page.'),
-        '#default_value' => variable_get('uc_migs_checkout_button', t('Submit Order')),
-      );
       $form['debug'] = array(
         '#type' => 'fieldset',
         '#title' => 'Debug settings',
