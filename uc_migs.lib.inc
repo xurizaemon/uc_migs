@@ -262,3 +262,33 @@ function _uc_migs_select_transaction_results(&$element) {
     $prefix.'51' => 'No Credit',
   );
 }
+
+/**
+ * Helper function to return a structured array of supported card
+ * types MIGS offers.
+ */
+function _uc_migs_card_types() {
+  return array(
+    'mastercard' => array(
+      'name' => 'MasterCard',
+      'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_masterc.gif',
+    ),
+    'visa' => array(
+      'name' => 'VISA',
+      'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_visa.gif',
+    ),
+    'amex' => array(
+      'name' => 'American Express',
+      'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_amex.gif',
+    ),
+    'jcb' => array(
+      'name' => 'JCB',
+      'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_jcb.gif',
+    ),
+    'diners' => array(
+      'name' => 'Diners Club',
+      'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_dinersclub.gif',
+    ),
+  );
+}   
+
