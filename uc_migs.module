@@ -63,6 +63,19 @@ function uc_migs_theme() {
         'filename' => '',
         'alttext'  => '',
       ),
+      'file' => 'uc_migs.theme.inc',
+    ),
+    'uc_migs_cc_logos' => array(
+      'arguments' => array(
+        'logos' => array(),
+      ),
+      'file' => 'uc_migs.theme.inc',
+    ),
+    'uc_migs_method_title' => array(
+      'arguments' => array(
+        'title' => '',
+      ),
+      'file' => 'uc_migs.theme.inc',
     ),
   );
 }
@@ -93,6 +106,9 @@ function uc_migs_form_alter(&$form, &$form_state, $form_id) {
       $form['#suffix'] = '</td><td>'. drupal_get_form('uc_migs_form', $order) .'</td></tr></table>';
     }
   }
+  if ($form_id == 'uc_payment_methods_form' && isset($form['method_migs']['#collapsed'])) {
+    $form['method_migs']['#collapsed'] = FALSE;
+  }
 }
 
 
@@ -104,13 +120,8 @@ function uc_migs_form_alter(&$form, &$form_state, $form_id) {
  * Implementation of hook_payment_method().
  */
 function uc_migs_payment_method() {
-  $title = variable_get('uc_migs_method_title', t('Credit card on a secure server.'));
-  if ( variable_get('uc_migs_method_title_icons', TRUE) ) {
-    $title .= '<br />' ;
-    foreach ( _uc_migs_cc_logos() as $k => $v ) {
-      $title .= theme('uc_migs_cc_logo', $v, $k) ;
-    }    
-  }
+  module_load_include('inc', 'uc_migs', 'uc_migs.lib');
+  $title = theme('uc_migs_method_title', variable_get('uc_migs_method_title', t('Credit card on a secure server.')));
   $methods[] = array(
     'id' => 'migs',
     'name' => t('MIGS 3rd party'),
@@ -135,6 +146,7 @@ function uc_migs_payment_method() {
  * Callback for MIGS payment method settings.
  */
 function uc_payment_method_migs($op, &$arg1) {
+  module_load_include('inc', 'uc_migs', 'uc_migs.lib');
   switch ($op) {
     case 'settings':
       $form['merchant'] = array(
@@ -189,30 +201,48 @@ function uc_payment_method_migs($op, &$arg1) {
         ),
         '#default_value' => variable_get('uc_migs_locale', 'en'),
       );
+
       $form['interface']['icons'] = array(
         '#type' => 'fieldset',
         '#title' => t('Credit card logos'),
         '#collapsible' => TRUE,
         '#collapsed' => !variable_get('uc_migs_method_title_icons', TRUE),
       );
+
+      foreach (_uc_migs_card_types() as $k => $card) {
+        $options[$k] = $card['name'];
+        if (file_exists($card['logo_local'])) {
+          $logos[] = theme('uc_migs_cc_logo', $card['logo_local'], $card['name']);
+        }
+        else {
+          /* This is clever, but I don't know if it's smart. */
+          // $logos[] = theme('uc_migs_cc_logo', $card['logo_remote'], $card['name']);
+          $missing_logos[] = t('!name (upload !this_image to !this_location)', array('!name' => $card['name'], '!this_image' => l('this image', $card['logo_remote']), '!this_location' => $card['logo_local']));
+        }
+      }
+
+      if ($logos) {
+        $form['interface']['icons']['#description'] .= theme('uc_migs_cc_logos', $logos);
+      }
+
+      if ($missing_logos) {
+        $form['interface']['icons']['#description'] .= '<div style="clear:both;">You may want to copy these icons to your site for display or themeing:' .
+          theme('item_list', $missing_logos) . '</div>';
+      }
+
       $form['interface']['icons']['uc_migs_method_title_icons'] = array(
         '#type' => 'checkbox',
         '#title' => t('Show credit card icons beside the payment method title.'),
         '#default_value' => variable_get('uc_migs_method_title_icons', TRUE),
+        '#description' => '',
       );
-      foreach (_uc_migs_cc_logos() as $cc_logo) {
-        if (!file_exists($cc_logo)) {
-          $missing_cc_logos[] = $cc_logo ;
-        }
-      }
-      if ( $missing_cc_logos ) {
-        $form['interface']['icons']['uc_migs_method_title_icons']['#prefix'] = "<p class='error'>Please upload appropriate logos to have the correct credit card icons beside the payment method (if the next checkbox is enabled). The missing file(s) are: ". 
-          theme('item_list', $missing_cc_logos, '', 'ul', array('class' => 'error')) . '</p>' ;
-      }
-      $form['interface']['icons']['uc_migs_method_title_icons']['#description'] = 'The following logos can be displayed:<br />' ;
-      foreach (_uc_migs_cc_logos() as $k => $v) {
-        $form['uc_migs_method_title_icons']['#description'] .= theme('uc_migs_cc_logo', $v, $k) ;
-      }
+      
+      $form['interface']['icons']['uc_migs_method_title_display_icons'] = array(
+        '#type' => 'checkboxes',
+        '#title' => 'Icons to display',
+        '#options' => $options,
+        '#default_value' => variable_get('uc_migs_method_title_display_icons', array()),
+      );
       $form['debug'] = array(
         '#type' => 'fieldset',
         '#title' => 'Debug settings',
@@ -378,33 +408,6 @@ function uc_migs_complete($cart_id = 0) {
       uc_order_comment_save($order->order_id, 0, t('A payment has been accepted.'), 'admin');    
       return $output;
   }
-}
-
-/**
- * Helper function to return a named array of CC provider logos to display.
- *
- * Note that you need not override this; you can simply alter the
- * variables or replace the files in the default location.
- */
-function _uc_migs_cc_logos() {
-  $cc_logos = array(
-    'MasterCard' => variable_get('uc_migs_logo_mastercard', file_directory_path() .'/uc_migs/mastercard.gif'),
-    'Visa' => variable_get('uc_migs_logo_visa', file_directory_path() .'/uc_migs/visa.gif'),
-  ) ;
-  return $cc_logos ;
-}
-
-/**
- * Allow people to override the logo display.
- *
- * return theme('imagecache', 'cc_logo', $filename, $alttext) ;
- *
- * I like to then do something like the above in my theme. Of course,
- * you can always modify the provider logos, but why open Photoshop
- * when you have Drupal? 'cc_logo' is a scale preset with height=50.
- */
-function theme_uc_migs_cc_logo($filename, $alttext='') {
-  return theme('image', $filename, $alttext) ;
 }
 
 /**

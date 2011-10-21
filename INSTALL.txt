@@ -1,5 +1,5 @@
 
-INSTALL
+ INSTALL
 ---------------------
 
 This module is a payment processor for Ubercart. You'll need Ubercart
@@ -21,22 +21,4 @@ These details will be provided by your bank. If you have an existing MIGS
 account you should be provided these, typically in two copies - one each for
 live use and for testing.
 
-If you are a developer and do not have a live MIGS account, contact the bank
-you are setting up the site for, and request a set of development
-credentials for testing.
-
-Contact details will be provided in your bank documentation. For ANZ
-Australia/NZ, the following PDFs have contact details which are correct at
-time of writing.
-
- * http://www.anz.com/australia/business/merchant/pdf/MIGSProductGuide.pdf
- * http://www.anz.com/australia/business/merchant/pdf/VPC-Dev-Kit-Integration-Notes.pdf
-
-
-IMPROVEMENTS
----------------------
-
-Improvements to this documentation are welcome, preferably in the form of a
-patch submitted or issue submitted via http://drupal.org/project/uc_migs
-
-Thanks!
+See README.txt for more information.
