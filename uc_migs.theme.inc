@@ -8,7 +8,9 @@
  *   return theme('image', $filename, $alttext, $alttext, array('height' => '24'), FALSE) ; // browser resize, permit use of remote logos
  */
 function theme_uc_migs_cc_logo($vars) {
-  return theme('image', $vars['filename'], $vars['alttext']) ;
+  if (isset($vars['path'])) {
+    return theme('image', array('path' => $vars['path'], 'alt' => $vars['alt'])) ;
+  }
 }
 
 /**
@@ -21,11 +23,11 @@ function theme_uc_migs_method_title($vars) {
   if (variable_get('uc_migs_method_title_icons', FALSE)) {
     foreach (variable_get('uc_migs_method_title_display_icons', array()) as $card) {
       if ($card && $cards[$card]['logo']) {
-        $logos[] = theme('uc_migs_cc_logo', $cards[$card]['logo'], $cards[$card]['name']);
+        $logos[] = theme('uc_migs_cc_logo', array('path' => $cards[$card]['logo'], 'alt' => $cards[$card]['name']));
       }
     }
     if (!empty($logos)) {
-      $vars['title'] .= '<br>' . theme('uc_migs_cc_logos', $logos);
+      $vars['title'] .= '<br>' . theme('uc_migs_cc_logos', array('logos' => $logos));
     }
   }
   return $vars['title'];
