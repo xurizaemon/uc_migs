@@ -30,22 +30,22 @@ function _uc_migs_migs_do_url($args) {
  */
 function _uc_migs_validate_transaction($secure_secret) {
   // Standard Receipt Data
-  $amount          = $_GET['vpc_Amount'];
-  $locale          = $_GET['vpc_Locale'];
-  $batchNo         = $_GET['vpc_BatchNo'];
-  $command         = $_GET['vpc_Command'];
-  $message         = $_GET['vpc_Message']; 
-  $version         = $_GET['vpc_Version'];
-  $cardType        = $_GET['vpc_Card'];
-  $orderInfo       = $_GET['vpc_OrderInfo'];
-  $receiptNo       = $_GET['vpc_ReceiptNo'];
-  $merchantID      = $_GET['vpc_Merchant'];
-  $authorizeID     = $_GET['vpc_AuthorizeId'];
-  $merchTxnRef     = $_GET['vpc_MerchTxnRef'];
-  $transactionNo   = $_GET['vpc_TransactionNo'];
-  $acqResponseCode = $_GET['vpc_AcqResponseCode'];
-  $txnResponseCode = check_plain($_GET['vpc_TxnResponseCode']);
-  $plain_message   = check_plain($_GET['vpc_Message']);
+  $amount          = (isset($_GET['vpc_Amount'])) ? $_GET['vpc_Amount'] : NULL;
+  $locale          = (isset($_GET['vpc_Locale'])) ? $_GET['vpc_Locale'] : NULL;
+  $batchNo         = (isset($_GET['vpc_BatchNo'])) ? $_GET['vpc_BatchNo'] : NULL;
+  $command         = (isset($_GET['vpc_Command'])) ? $_GET['vpc_Command'] : NULL;
+  $message         = (isset($_GET['vpc_Message'])) ? $_GET['vpc_Message'] : NULL; 
+  $version         = (isset($_GET['vpc_Version'])) ? $_GET['vpc_Version'] : NULL;
+  $cardType        = (isset($_GET['vpc_Card'])) ? $_GET['vpc_Card'] : NULL;
+  $orderInfo       = (isset($_GET['vpc_OrderInfo'])) ? $_GET['vpc_OrderInfo'] : NULL;
+  $receiptNo       = (isset($_GET['vpc_ReceiptNo'])) ? $_GET['vpc_ReceiptNo'] : NULL;
+  $merchantID      = (isset($_GET['vpc_Merchant'])) ? $_GET['vpc_Merchant'] : NULL;
+  $authorizeID     = (isset($_GET['vpc_AuthorizeId'])) ? $_GET['vpc_AuthorizeId'] : NULL;
+  $merchTxnRef     = (isset($_GET['vpc_MerchTxnRef'])) ? $_GET['vpc_MerchTxnRef'] : NULL;
+  $transactionNo   = (isset($_GET['vpc_TransactionNo'])) ? $_GET['vpc_TransactionNo'] : NULL;
+  $acqResponseCode = (isset($_GET['vpc_AcqResponseCode'])) ? $_GET['vpc_AcqResponseCode'] : NULL;
+  $txnResponseCode = check_plain((isset($_GET['vpc_TxnResponseCode'])) ? $_GET['vpc_TxnResponseCode'] : NULL);
+  $plain_message   = check_plain((isset($_GET['vpc_Message'])) ? $_GET['vpc_Message'] : NULL);
 
   // 3-D Secure Data
   $verType         = array_key_exists('vpc_VerType', $_GET)          ? $_GET['vpc_VerType']          : "No Value Returned";
