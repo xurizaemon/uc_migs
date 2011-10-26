@@ -272,27 +272,27 @@ function _uc_migs_card_types() {
     'mastercard' => array(
       'name' => 'MasterCard',
       'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_masterc.gif',
-      'logo_local' => variable_get('uc_migs_logo_mastercard', file_directory_path() .'/uc_migs/mastercard.gif'),
+      'logo_local' => variable_get('uc_migs_logo_mastercard', drupal_realpath('public://uc_migs/mastercard.gif')),
     ),
     'visa' => array(
       'name' => 'VISA',
       'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_visa.gif',
-      'logo_local' => variable_get('uc_migs_logo_visa', file_directory_path() .'/uc_migs/visa.gif'),
+      'logo_local' => variable_get('uc_migs_logo_visa', drupal_realpath('public://uc_migs/visa.gif')),
     ),
     'amex' => array(
       'name' => 'American Express',
       'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_amex.gif',
-      'logo_local' => variable_get('uc_migs_logo_amex', file_directory_path() .'/uc_migs/amex.gif'),
+      'logo_local' => variable_get('uc_migs_logo_amex', 'public://uc_migs/amex.gif'),
     ),
     'jcb' => array(
       'name' => 'JCB',
       'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_jcb.gif',
-      'logo_local' => variable_get('uc_migs_logo_jcb', file_directory_path() .'/uc_migs/jcb.gif'),
+      'logo_local' => variable_get('uc_migs_logo_jcb', 'public://uc_migs/jcb.gif'),
     ),
     'diners' => array(
       'name' => 'Diners Club',
       'logo_remote' => 'https://migs.mastercard.com.au/res/svr/default/images/cards/card_sm_dinersclub.gif',
-      'logo_local' => variable_get('uc_migs_logo_diners', file_directory_path() .'/uc_migs/diners.gif'),
+      'logo_local' => variable_get('uc_migs_logo_diners', 'public://uc_migs/diners.gif'),
     ),
   );
   foreach ($card_types as &$card_type) {
