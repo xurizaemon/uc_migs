@@ -2,4 +2,6 @@ name = "MIGS"
 description = "Integrates MIGS 3rd party (bank hosted) payment gateway."
 dependencies[] = uc_payment
 package = Ubercart - payment
-core = 6.x
+core = 7.x
+configure = admin/store/settings/payment/method/migs
+
