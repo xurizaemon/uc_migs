@@ -393,7 +393,7 @@ function uc_migs_complete($cart_id = 0) {
       $order->data['migs_receiptno'] =  $_GET['vpc_ReceiptNo'] ;
       uc_order_save($order);
       // uc_order_save() saves order_status so it needs to happen before uc_payment_enter()
-      uc_payment_enter($order->order_id, 'migs', $amount/100, 0, NULL, $comment);
+      uc_payment_enter($order->order_id, 'migs', $amount/100, 0, array(), $comment)
       
       // Empty the cart...
       uc_cart_empty($cart_id);
