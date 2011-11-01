@@ -8,6 +8,6 @@
  */
 function uc_migs_update_6000() {
   $ret = array();
-  drupal_rebuild_theme_registry();
+  drupal_theme_rebuild();
   return $ret;
 }
