@@ -1,22 +1,7 @@
 <?php
 
 /**
- * @file
- * Integrates MIGS 3rd party payment system.
- *
- * This a payment module intended for the MIGS (MasterCard Internet
- * Gateway Service) for what they call the "3rd party" integration
- * method, or the Virtual Payment Client (VPC) which is the interface
- * that processes the payment on their secure server.
- *
- * See http://drupal.org/project/uc_migs for the most up to date version.
- *
- * Currently maintained by Giant Robot Ltd - www.giantrobot.co.nz 
- * Feedback welcome via issue queue or twitter.com/grobot
- *
- * Thanks also to previous authors & contributors:
- *  T-Rex Art    - http://www.trexart.com.au
- *  Open Web Lab - http://www.openweblab.com
+ * @file Integrates MIGS 3rd party payment system with Ubercart.
  */
 
 /**
