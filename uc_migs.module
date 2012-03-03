@@ -310,18 +310,23 @@ function uc_migs_complete($cart_id = 0) {
   module_load_include('inc', 'uc_migs', 'uc_migs.lib');
 
   // ensure that MIGS is configured before processing
-  $secure_secret   = variable_get('uc_migs_secure_hash_secret', '');  
+  $secure_secret   = variable_get('uc_migs_secure_hash_secret', '');
   if ( empty($secure_secret) ) {
     // Secure Hash was not validated, none there to validate
     drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
     watchdog( 'uc_migs', 'Unable to process response from MIGS gateway, as MIGS Secure Hash Secret is not configured. Please correct your !settings.', array('!settings' => l('payment method settings', 'admin/store/settings/payment/edit/methods')), WATCHDOG_WARNING);
     return theme('uc_migs_order_incomplete', array('response_message' => UC_MIGS_ERROR_SITE_CONFIG, 'response_receiptno' => $receiptNo, 'order_info' => $orderInfo, 'order' => $order));
   }
-  
+
   $result = _uc_migs_validate_transaction($secure_secret);
   $order = uc_order_load(check_plain($_GET['vpc_OrderInfo']));
   $orderInfo = check_plain($_GET['vpc_OrderInfo']);
-  $receiptNo = check_plain($_GET['vpc_ReceiptNo']);
+  if (isset($_GET['vpc_ReceiptNo'])) {
+    $receiptNo = check_plain($_GET['vpc_ReceiptNo']);
+  }
+  else {
+    $receiptNo = '';
+  }
   $txnResponseCode = check_plain($_GET['vpc_TxnResponseCode']);
   $amount = check_plain($_GET['vpc_Amount']);
 

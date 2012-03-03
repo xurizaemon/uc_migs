@@ -57,7 +57,7 @@ function _uc_migs_validate_transaction($secure_secret) {
   $acqECI          = array_key_exists('vpc_3DSECI', $_GET)           ? $_GET['vpc_3DSECI']           : "No Value Returned";
   $authStatus      = array_key_exists('vpc_3DSstatus', $_GET)        ? $_GET['vpc_3DSstatus']        : "No Value Returned";
 
-  $vpc_Txn_Secure_Hash = $_GET['vpc_SecureHash'];
+  $vpc_Txn_Secure_Hash = isset($_GET['vpc_SecureHash']) ? $_GET['vpc_SecureHash'] : '';
   $errorExists = FALSE ;
 
   if ( $txnResponseCode != 7 && $txnResponseCode != '' ) {
