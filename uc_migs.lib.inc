@@ -34,7 +34,7 @@ function _uc_migs_validate_transaction($secure_secret) {
   $locale          = (isset($_GET['vpc_Locale'])) ? $_GET['vpc_Locale'] : NULL;
   $batchNo         = (isset($_GET['vpc_BatchNo'])) ? $_GET['vpc_BatchNo'] : NULL;
   $command         = (isset($_GET['vpc_Command'])) ? $_GET['vpc_Command'] : NULL;
-  $message         = (isset($_GET['vpc_Message'])) ? $_GET['vpc_Message'] : NULL; 
+  $message         = (isset($_GET['vpc_Message'])) ? $_GET['vpc_Message'] : NULL;
   $version         = (isset($_GET['vpc_Version'])) ? $_GET['vpc_Version'] : NULL;
   $cardType        = (isset($_GET['vpc_Card'])) ? $_GET['vpc_Card'] : NULL;
   $orderInfo       = (isset($_GET['vpc_OrderInfo'])) ? $_GET['vpc_OrderInfo'] : NULL;
@@ -74,7 +74,7 @@ function _uc_migs_validate_transaction($secure_secret) {
       return UC_MIGS_TRANSACTION_BADHASH;
     }
     else {
-      // validation success; fall thru to next phase 
+      // validation success; fall thru to next phase
     }
   } else {
     // Secure Hash was not validated, none there to validate
@@ -100,7 +100,7 @@ function _uc_migs_validate_transaction($secure_secret) {
       }
       return UC_MIGS_TRANSACTION_ORDERNOTYETINCHECKOUT;
   }
-  
+
   if ( $txnResponseCode != "0") {
     return UC_MIGS_TRANSACTION_PAYMENTERROR;
   } else {
@@ -119,12 +119,12 @@ function _uc_migs_validate_transaction($secure_secret) {
 function _uc_migs_get_response_description($responseCode) {
   switch ($responseCode) {
     case '0' :
-      $result = "Transaction Successful"; 
+      $result = "Transaction Successful";
       break;
-    case '?' : 
-      $result = "Transaction status is unknown"; 
+    case '?' :
+      $result = "Transaction status is unknown";
       break;
-    case '1' : 
+    case '1' :
       $result = "Transaction could not be processed";
       break;
     case '2' :
@@ -191,7 +191,7 @@ function _uc_migs_get_response_description($responseCode) {
       $result = "Address Verification and Card Security Code Failed";
       break ;
     default  :
-      $result = "Unable to be determined"; 
+      $result = "Unable to be determined";
   }
   return $result;
 }
@@ -209,7 +209,7 @@ function _uc_migs_get_status_description($statusResponse) {
     $result = "3DS not supported or there was no 3DS data provided";
   } else {
     switch ($statusResponse) {
-      case 'Y' : 
+      case 'Y' :
         $result = "The cardholder was successfully authenticated.";
         break;
       case 'E' :
@@ -237,13 +237,13 @@ function _uc_migs_get_status_description($statusResponse) {
         $result = "The signature on the response received from the Issuer could not be validated.";
         break;
       case 'P' :
-        $result = "Error parsing input from Issuer."; 
+        $result = "Error parsing input from Issuer.";
         break;
       case 'I' :
-        $result = "Internal Payment Server system error."; 
+        $result = "Internal Payment Server system error.";
         break;
       default  :
-        $result = "Unable to be determined"; 
+        $result = "Unable to be determined";
         break;
     }
   }
@@ -303,4 +303,4 @@ function _uc_migs_card_types() {
     $card_type['logo'] = (file_exists($card_type['logo_local'])) ? $card_type['logo_local'] : $card_type['logo_remote'];
   }
   return $card_types;
-}   
+}
