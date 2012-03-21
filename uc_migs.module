@@ -330,7 +330,7 @@ function uc_migs_complete($cart_id = 0) {
   $txnResponseCode = check_plain($_GET['vpc_TxnResponseCode']);
   $amount = check_plain($_GET['vpc_Amount']);
 
-  switch (_uc_migs_validate_transaction($secure_secret)) {
+  switch ($result) {
     case UC_MIGS_TRANSACTION_BADHASH:
       // Secure Hash validation failed
       drupal_set_title(UC_MIGS_ERROR_NOT_PROCESSED);
