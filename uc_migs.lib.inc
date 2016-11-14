@@ -7,8 +7,20 @@
  * @return string URL for redirect
  */
 function _uc_migs_migs_do_url($args) {
-  $md5HashData = $args['secure_secret'] . $args['vpc_AccessCode'] . $args['vpc_Amount'] . 'pay' . $args['vpc_Locale'] . $args['vpc_MerchTxnRef'] . $args['vpc_Merchant'] . $args['vpc_OrderInfo'] . $args['vpc_ReturnURL'] . $args['vpc_Version'];
-  $url = variable_get('uc_migs_base_url', UC_MIGS_BASE_URL) . '?' .
+    $hashinput="";
+    ksort($args);
+    foreach ($args as $key=>$value)
+    {
+        if ((strlen($value) > 0) && ((substr($key, 0,4)=="vpc_") ||(substr($key,0,5) =="user_"))) 
+                {
+                    $hashinput .= $key . "=" . $value . "&";
+                }
+
+    }
+    $hashinput = rtrim($hashinput, "&");
+    $securehash = strtoupper(hash_hmac('SHA256', $hashinput, pack('H*',$args['secure_secret'])));#change securehash md5 to SHA256
+  
+    $url = variable_get('uc_migs_base_url', UC_MIGS_BASE_URL) . '?' .
     'vpc_AccessCode='   . urlencode($args['vpc_AccessCode']) .
     '&vpc_Amount='      . urlencode($args['vpc_Amount']) .
     '&vpc_Command='     . urlencode('pay') .
@@ -18,7 +30,10 @@ function _uc_migs_migs_do_url($args) {
     '&vpc_OrderInfo='   . urlencode($args['vpc_OrderInfo']) .
     '&vpc_ReturnURL='   . urlencode($args['vpc_ReturnURL']) .
     '&vpc_Version='     . urlencode($args['vpc_Version']) .
-    '&vpc_SecureHash='  . strtoupper(md5($md5HashData));
+    '&Title=PHPVPC3PartyTransacion'.     
+    '&vpc_SecureHash='  . $securehash.
+    '&vpc_SecureHashType=SHA256';
+ 
   return $url;
 }
 
@@ -61,16 +76,21 @@ function _uc_migs_validate_transaction($secure_secret) {
   $errorExists = FALSE ;
 
   if ( $txnResponseCode != 7 && $txnResponseCode != '' ) {
-    $md5HashData = $secure_secret;
+    
     // sort all the incoming vpc response fields and leave out any
     // with no value, or which are "vpc_SecureHash" or "q"
+    $hashinput_c = "";
     foreach($_GET as $key => $value) {
-      if ($key != "vpc_SecureHash" && $key != "q" && strlen($value) > 0) { // strlen()>0 not empty() because of '0'
-        $md5HashData .= $value;
+	if (($key!="vpc_SecureHash") && ($key != "vpc_SecureHashType") && ((substr($key, 0,4)=="vpc_") || (substr($key,0,5) =="user_"))) {
+		 $hashinput_c .= $key . "=" . $value . "&";
       }
     }
+   
+    $hashinput_c = rtrim($hashinput_c, "&");
+    $securehash = strtoupper(hash_hmac('SHA256', $hashinput_c, pack('H*',$secure_secret)));
+    
     // validate secure hash
-    if (strtoupper($vpc_Txn_Secure_Hash) != strtoupper(md5($md5HashData))) {
+    if (strtoupper($vpc_Txn_Secure_Hash) != $securehash) {
       return UC_MIGS_TRANSACTION_BADHASH;
     }
     else {
