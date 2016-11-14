@@ -291,6 +291,7 @@ function uc_migs_form_submit($form, &$form_state) {
   $args = array(
     'vpc_AccessCode'  => variable_get('uc_migs_access_code', ''),
     'vpc_Amount'      => $form_state['values']['vpc_Amount'],
+    'vpc_Command'     =>'pay',
     'vpc_Locale'      => variable_get('uc_migs_locale', 'en'),
     'vpc_Merchant'    => variable_get('uc_migs_mid', ''),
     'vpc_OrderInfo'   => $form_state['values']['vpc_OrderInfo'],
